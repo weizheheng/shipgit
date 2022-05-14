@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: git roll hotfix [action] [-options]"
+	echo "       git roll hotfix start <version>"
+	echo "       git roll hotfix finish"
+	echo "       git roll hotfix cleanup <version>"
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  usage
+  exit 0
+}
+
+handle_develop_merge_conflict() {
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	HOTFIX_BRANCH=$1
+
+	echo "There are merge conflicts between develop and hotfix branches"
+	echo "Please fix the conflicts yourself."
+	echo "After that, add the changes and run:"
+	echo "    git commit"
+	echo "Finally, you can finish it yourself by:"
+	echo "- Force pushing back to remote $DEVELOP_BRANCH"
+	echo "- Delete the local and remote $HOTFIX_BRANCH."
+	echo
+	echo "Or, run the following helper function:"
+	echo "    git roll hotfix cleanup <version>"
+	exit 1
+}
+
+handle_master_merge_conflict() {
+	# Conflict with hotfix branches should only happen 
+	# when someone else pushes to the remote master
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	HOTFIX_BRANCH=$1
+
+	echo "There are merge conflicts between master and hotfix branches"
+	echo "Aborting the merge..."
+	git merge --abort
+	echo "Checking out back to $HOTFIX_BRANCH"
+	git checkout -q "$HOTFIX_BRANCH"
+	echo "Performing a rebase with $MASTER_BRANCH..."
+	git rebase "$MASTER_BRANCH"
+	echo "Please fix the conflicts and continue with:"
+	echo "    git roll hotfix finish"
+	exit 1
+}
+
+cmd_start() {
+	# Creating the a new hotfix branch
+	PREFIX=$(git config --get gitroll.prefix.hotfix)
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	TAGNAME=$3
+	HOTFIX_BRANCH=$PREFIX$TAGNAME
+
+	echo "Checking out to $MASTER_BRANCH..."
+	git checkout -q "$MASTER_BRANCH"
+
+	echo "Updating local $MASTER_BRANCH with remote..."
+	git pull origin "$MASTER_BRANCH"
+
+  echo "Creating $HOTFIX_BRANCH base on $MASTER_BRANCH..."
+	git branch --no-track "$HOTFIX_BRANCH" "$MASTER_BRANCH"
+
+	# Checkout to the new hotfix branch
+  echo "Checking out to $HOTFIX_BRANCH..."
+	git checkout -q "$HOTFIX_BRANCH"
+
+	# Push to remote
+  echo "Pushing $HOTFIX_BRANCH to remote..."
+	git push -u origin "$HOTFIX_BRANCH"
+}
+
+cmd_finish() {
+	PREFIX=$(git config --get gitroll.prefix.hotfix)
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	HOTFIX_BRANCH=$(git branch --show-current)
+
+	# Checkout to master to merge in hotfix branch
+  echo "Checking out to $MASTER_BRANCH..."
+	git checkout -q "$MASTER_BRANCH"
+
+  echo "Updating local $MASTER_BRANCH with remote..."
+	git pull origin $MASTER_BRANCH
+
+  echo "Merging $HOTFIX_BRANCH into $MASTER_BRANCH..."
+	git merge --log --no-ff "$HOTFIX_BRANCH" || handle_master_merge_conflict "$HOTFIX_BRANCH"
+
+	# Creating and pushing the tag
+	TAGNAME=$(echo $HOTFIX_BRANCH | sed "s#$PREFIX##")
+	LATEST_TAG=$(git describe --always)
+	if [ LATEST_TAG != TAGNAME ]; then
+		echo "Creating new tag: "$TAGNAME"..."
+		git tag -a "$TAGNAME"
+	fi
+
+  echo "Pushing tag "$TAGNAME" to remote..."
+  git push origin "$TAGNAME"
+
+  # Pushing master to remote
+  echo "Pushing "$MASTER_BRANCH" to remote..."
+	git push origin "$MASTER_BRANCH"
+
+	# Checkout to develop to merge in hotfix branch
+  echo "Checking out to develop..."
+	git checkout -q "$DEVELOP_BRANCH"
+
+  echo "Updating local $DEVELOP_BRANCH with remote..."
+	git pull origin $DEVELOP_BRANCH
+
+  echo "Merging $HOTFIX_BRANCH into $DEVELOP_BRANCH..."
+	git merge --log --no-ff "$HOTFIX_BRANCH" || handle_develop_merge_conflict "$HOTFIX_BRANCH"
+
+  echo "Pushing "$DEVELOP_BRANCH" to remote..."
+	git push origin "$DEVELOP_BRANCH"
+
+	# Clean up local and remote hotfix branches
+  echo "Cleaning up hotfix branches..."
+	git branch -D "$HOTFIX_BRANCH"
+	git push -d origin "$HOTFIX_BRANCH"
+}
+
+cmd_cleanup() {
+	PREFIX=$(git config --get gitroll.prefix.hotfix)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	TAGNAME=$3
+	HOTFIX_BRANCH=$PREFIX$TAGNAME
+
+	echo "Force pushing to remote $DEVELOP_BRANCH..."
+	git push origin "$DEVELOP_BRANCH" --force
+
+  echo "Cleaning up hotfix branches..."
+	git branch -D "$HOTFIX_BRANCH"
+	git push -d origin "$HOTFIX_BRANCH"
+}
