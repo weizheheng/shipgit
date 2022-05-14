@@ -3,7 +3,7 @@
 REPO_DIR="$(dirname $0)"
 INSTALL_INTO="/usr/local/bin"
 EXEC_FILES="git-roll"
-SCRIPT_FILES="git-roll-init git-roll-feature"
+SCRIPT_FILES="git-roll-init git-roll-feature git-roll-hotfix git-roll-release"
 
 for exec_file in $EXEC_FILES ; do
   echo "Installing $exec_file"
