@@ -96,7 +96,7 @@ cmd_finish() {
 	# Creating and pushing the tag
 	TAGNAME=$(echo $HOTFIX_BRANCH | sed "s#$PREFIX##")
 	LATEST_TAG=$(git describe --always)
-	if [ LATEST_TAG != TAGNAME ]; then
+	if [ "$LATEST_TAG" != "$TAGNAME" ]; then
 		echo "Creating new tag: "$TAGNAME"..."
 		git tag -a "$TAGNAME"
 	fi
