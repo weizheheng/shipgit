@@ -16,18 +16,43 @@ cmd_default() {
   exit 0
 }
 
+handle_develop_merge_conflict() {
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	FEATURE_BRANCH=$1
+
+	echo "There are merge conflicts between develop and feature branches"
+	echo "Aborting the merge..."
+	git merge --abort
+	echo "Checking out back to $FEATURE_BRANCH"
+	git checkout -q "$FEATURE_BRANCH"
+	echo "Performing a rebase with $DEVELOP_BRANCH..."
+	git rebase "$DEVELOP_BRANCH"
+	echo "Please fix the conflicts and continue with:"
+	echo "    git roll feature finish"
+	exit 1
+}
+
 cmd_start() {
 	# Creating the a new feature branch
 	PREFIX=$(git config --get gitroll.prefix.feature)
 	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
 	NAME=$3
 	FEATURE_BRANCH=$PREFIX$NAME
+
+	echo "Checking out to $DEVELOP_BRANCH..."
+	git checkout -q "$DEVELOP_BRANCH"
+
+	echo "Updating local $DEVELOP_BRANCH with remote..."
+	git pull origin "$DEVELOP_BRANCH"
+
+  echo "Creating $FEATURE_BRANCH base on $DEVELOP_BRANCH..."
 	git branch --no-track "$FEATURE_BRANCH" "$DEVELOP_BRANCH"
 
-	# Checkout to the new feature branch
+  echo "Checking out to $FEATURE_BRANCH..."
 	git checkout -q "$FEATURE_BRANCH"
 
 	# Push to remote
+  echo "Pushing $FEATURE_BRANCH to remote..."
 	git push -u origin "$FEATURE_BRANCH"
 }
 
@@ -35,12 +60,19 @@ cmd_finish() {
 	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
 	FEATURE_BRANCH=$(git branch --show-current)
 
-	# Checkout to develop to merge in feature branch
+  echo "Checking out to $DEVELOP_BRANCH..."
 	git checkout -q "$DEVELOP_BRANCH"
-	git merge --log --no-ff "$FEATURE_BRANCH"
+
+  echo "Updating local $DEVELOP_BRANCH with remote..."
+	git pull origin $DEVELOP_BRANCH
+
+  echo "Merging $FEATURE_BRANCH into $DEVELOP_BRANCH..."
+	git merge --log --no-ff "$FEATURE_BRANCH" || handle_develop_merge_conflict "$FEATURE_BRANCH"
+
+  echo "Pushing $DEVELOP_BRANCH to remote..."
 	git push origin "$DEVELOP_BRANCH"
 
-	# Clean up local and remote feature branch
-	git branch -d "$FEATURE_BRANCH"
+  echo "Cleaning up feature branches..."
+	git branch -D "$FEATURE_BRANCH"
 	git push -d origin "$FEATURE_BRANCH"
 }
