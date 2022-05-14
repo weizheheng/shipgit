@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: git roll release [action] [-options]"
+	echo "       git roll release start <version>"
+	echo "       git roll release finish"
+	echo "       git roll release cleanup <version>"
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  usage
+  exit 0
+}
+
+handle_master_merge_conflict() {
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	RELEASE_BRANCH=$1
+	TAGNAME=$(echo $RELEASE_BRANCH | sed "s#$PREFIX##")
+
+	echo "There are merge conflicts between master and release branches"
+	echo "Please fix the conflicts yourself."
+	echo "After that, add the changes and run:"
+	echo "    git commit"
+	echo "Finally, you can finish it yourself by:"
+	echo "- Creating a new tag $TAGNAME"
+	echo "- Push the new $TAGNAME tag to remote"
+	echo "- Force pushing back to remote $MASTER_BRANCH"
+	echo "- Delete the local and remote $RELEASE_BRANCH."
+	echo
+	echo "Or, run the following helper function:"
+	echo "    git roll release cleanup <version>"
+	exit 1
+}
+
+handle_develop_merge_conflict() {
+	# Conflict with release branches should only happen 
+	# when someone else pushes to the remote develop
+
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	RELEASE_BRANCH=$1
+
+	echo "There are merge conflicts between develop and release branches"
+	echo "Aborting the merge..."
+	git merge --abort
+	echo "Checking out back to $RELEASE_BRANCH"
+	git checkout -q "$RELEASE_BRANCH"
+	echo "Performing a rebase with $DEVELOP_BRANCH..."
+	git rebase "$DEVELOP_BRANCH"
+	echo "Please fix the conflicts and continue with:"
+	echo "    git roll release finish"
+	exit 1
+}
+
+cmd_start() {
+	# Creating the a new release branch
+	PREFIX=$(git config --get gitroll.prefix.release)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	TAGNAME=$3
+	RELEASE_BRANCH=$PREFIX$TAGNAME
+
+	echo "Checking out to $DEVELOP_BRANCH..."
+	git checkout -q "$DEVELOP_BRANCH"
+
+	echo "Updating local $DEVELOP_BRANCH with remote..."
+	git pull origin "$DEVELOP_BRANCH"
+
+  echo "Creating $RELEASE_BRANCH base on $DEVELOP_BRANCH..."
+	git branch --no-track "$RELEASE_BRANCH" "$DEVELOP_BRANCH"
+
+	# Checkout to the new release branch
+  echo "Checking out to $RELEASE_BRANCH..."
+	git checkout -q "$RELEASE_BRANCH"
+
+	# Push to remote
+  echo "Pushing $RELEASE_BRANCH to remote..."
+	git push -u origin "$RELEASE_BRANCH"
+}
+
+cmd_finish() {
+	PREFIX=$(git config --get gitroll.prefix.release)
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	RELEASE_BRANCH=$(git branch --show-current)
+
+	# STEP 1
+  echo "Checking out to develop..."
+	git checkout -q "$DEVELOP_BRANCH"
+
+  echo "Updating local $DEVELOP_BRANCH with remote..."
+	git pull origin $DEVELOP_BRANCH
+
+  echo "Merging $RELEASE_BRANCH into $DEVELOP_BRANCH..."
+	git merge --log --no-ff "$RELEASE_BRANCH" || handle_develop_merge_conflict "$RELEASE_BRANCH"
+
+  echo "Pushing "$DEVELOP_BRANCH" to remote..."
+	git push origin "$DEVELOP_BRANCH"
+
+
+	# STEP 2
+  echo "Checking out to master..."
+	git checkout -q "$MASTER_BRANCH"
+
+  echo "Updating local $MASTER_BRANCH with remote..."
+	git pull origin $MASTER_BRANCH
+
+  echo "Merging $RELEASE_BRANCH into $MASTER_BRANCH..."
+	git merge --log --no-ff "$RELEASE_BRANCH" || handle_master_merge_conflict "$RELEASE_BRANCH"
+
+	TAGNAME=$(echo $RELEASE_BRANCH | sed "s#$PREFIX##")
+	LATEST_TAG=$(git describe --always)
+
+	if [ LATEST_TAG != TAGNAME ]; then
+		echo "Creating new tag: "$TAGNAME"..."
+		git tag -a "$TAGNAME"
+	fi
+
+  echo "Pushing tag "$TAGNAME" to remote..."
+  git push origin "$TAGNAME"
+
+  echo "Pushing "$MASTER_BRANCH" to remote..."
+	git push origin "$MASTER_BRANCH"
+
+	# STEP 3
+  echo "Cleaning up release branches..."
+	git branch -D "$RELEASE_BRANCH"
+	git push -d origin "$RELEASE_BRANCH"
+
+	# STEP 4
+	echo "Checking out to $DEVELOP_BRANCH..."
+	git checkout -q "$DEVELOP_BRANCH"
+}
+
+cmd_cleanup() {
+	PREFIX=$(git config --get gitroll.prefix.release)
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	TAGNAME=$3
+	RELEASE_BRANCH=$PREFIX$TAGNAME
+	LATEST_TAG=$(git describe --always)
+
+	if [ LATEST_TAG != TAGNAME ]; then
+		echo "Creating new tag: "$TAGNAME"..."
+		git tag -a "$TAGNAME"
+	fi
+
+  echo "Pushing tag "$TAGNAME" to remote..."
+  git push origin "$TAGNAME"
+
+	echo "Force pushing to remote $MASTER_BRANCH..."
+	git push origin "$MASTER_BRANCH" --force
+
+  echo "Cleaning up release branches..."
+	git branch -D "$RELEASE_BRANCH"
+	git push -d origin "$RELEASE_BRANCH"
+
+	echo "Checking out to $DEVELOP_BRANCH..."
+	git checkout -q "$DEVELOP_BRANCH"
+}
