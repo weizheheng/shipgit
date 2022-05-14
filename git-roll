@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# Setting git-roll dir
+# echo "$0" is telling which bash is using
+# E.g. bash, /bin/bash and etc.
+export GIT_ROLL_DIR=$(dirname "$(echo "$0")")
+
+usage() {
+	echo "usage: git roll <subcommand>"
+	echo
+	echo "Available subcommands are:"
+	echo "   init      Initialize a new git repo with support for the branching model."
+	echo "   feature   Manage your feature branches."
+	echo "   release   Manage your release branches."
+	echo "   hotfix    Manage your hotfix branches."
+	echo
+	echo "Try 'git roll <subcommand> help' for details."
+}
+
+main() {
+  # When number of arguments lesser than 1, show the usage messages
+  if [ $# -lt 1 ]; then
+    usage
+    exit 1
+  fi
+
+	# Setting the subcommand
+	# E.g git roll feature
+	# feature is the subcommand
+	SUBCOMMAND="$1"
+
+	# If subcommand is not supported show the usage messages
+	# -e returns true if the target exists
+	if [ ! -e "$GIT_ROLL_DIR/git-roll-$SUBCOMMAND" ]; then
+		usage
+		exit 1
+	fi
+
+	# running command
+	# . command is used to evaluate commands in the current execution context
+	. "$GIT_ROLL_DIR/git-roll-$SUBCOMMAND"
+
+	SUBACTION="default"
+	if [ "$2" != "" ]; then
+		SUBACTION="$2"
+	fi
+
+	if ! type "cmd_$SUBACTION" >/dev/null 2>&1; then
+		warn "Unknown subaction: '$SUBACTION'" 
+		usage
+		exit 1
+	fi
+
+	# run the specified action
+	cmd_$SUBACTION "$@"
+}
+
+# @ Expands to the positional parameters, starting from one.
+main "$@"

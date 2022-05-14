@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: git roll init"
+  echo "This will setup your repo to work with git-roll"
+  echo "It will create a main branch if not present."
+  echo "It will create a develop branch if not present."
+  echo "It will ask for preferred feature branch prefix."
+  echo "It will ask for preferred hotfix branch prefix."
+  echo "It will ask for preferred release branch prefix."
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  local initialized=$(git config --get gitroll.initialized)
+	if [ "$initialized" == "true" ]; then
+    echo "git-roll is already initialized."
+    echo "No further action taken."
+		exit 0
+	fi
+
+  local answer
+
+  # First step: Setting the master branch
+  local master_branch
+  printf "Branch name for production: "
+  read answer
+  master_branch="$answer"
+  git config gitroll.branch.master "$master_branch"
+
+  # Second step: Setting the develop branch
+  local develop_branch
+  printf "Branch name for development: "
+  read answer
+  develop_branch="$answer"
+  git config gitroll.branch.develop "$develop_branch"
+
+  ## Creating/checking out to the develop branch
+  if git show-ref --quiet refs/heads/$develop_branch; then
+    git checkout -q "$develop_branch"
+  else
+    git branch --no-track "$develop_branch" "$master_branch"
+    git checkout -q "$develop_branch"
+  fi
+
+  # Third step: Ask for feature branch prefix
+  printf "Prefix for Feature branches?: "
+  read answer
+  git config gitroll.prefix.feature "$answer"
+
+  # Third step: Ask for feature branch prefix
+  printf "Prefix for Hotfix branches?: "
+  read answer
+  git config gitroll.prefix.hotfix "$answer"
+
+  # Fourth step: Ask for feature branch prefix
+  printf "Prefix for Release branches?: "
+  read answer
+  git config gitroll.prefix.release "$answer"
+
+  git config gitroll.initialized "true"
+
+  # Push develop branch to remote
+  git push -u origin "$develop_branch"
+}

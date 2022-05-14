@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: git roll feature [action] [-options]"
+	echo "       git roll feature start <name>"
+	echo "       git roll feature finish"
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  usage
+  exit 0
+}
+
+cmd_start() {
+	# Creating the a new feature branch
+	PREFIX=$(git config --get gitroll.prefix.feature)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	NAME=$3
+	FEATURE_BRANCH=$PREFIX$NAME
+	git branch --no-track "$FEATURE_BRANCH" "$DEVELOP_BRANCH"
+
+	# Checkout to the new feature branch
+	git checkout -q "$FEATURE_BRANCH"
+
+	# Push to remote
+	git push -u origin "$FEATURE_BRANCH"
+}
+
+cmd_finish() {
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+	FEATURE_BRANCH=$(git branch --show-current)
+
+	# Checkout to develop to merge in feature branch
+	git checkout -q "$DEVELOP_BRANCH"
+	git merge --log --no-ff "$FEATURE_BRANCH"
+	git push origin "$DEVELOP_BRANCH"
+
+	# Clean up local and remote feature branch
+	git branch -d "$FEATURE_BRANCH"
+	git push -d origin "$FEATURE_BRANCH"
+}
