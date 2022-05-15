@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: git roll update"
+  echo "This will pull latest changes from remote master and development branch."
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  local initialized=$(git config --get gitroll.initialized)
+	if [ "$initialized" != "true" ]; then
+    echo "git-roll can only be used inside a git-roll initialized directory."
+    echo "Run git roll init to initialize."
+		exit 0
+	fi
+
+	CURRENT_BRANCH=$(git branch --show-current)
+	MASTER_BRANCH=$(git config --get gitroll.branch.master)
+	DEVELOP_BRANCH=$(git config --get gitroll.branch.develop)
+
+	echo "Checking out to $MASTER_BRANCH..."
+	git checkout -q "$MASTER_BRANCH"
+
+	echo "Pulling latest changes from remote $MASTER_BRANCH..."
+	git pull origin "$MASTER_BRANCH"
+
+	echo "Checking out to $DEVELOP_BRANCH..."
+	git checkout -q "$DEVELOP_BRANCH"
+
+	echo "Pulling latest changes from remote $DEVELOP_BRANCH..."
+	git pull origin "$DEVELOP_BRANCH"
+
+	echo "Checking out back to your initial branch $CURRENT_BRANCH..."
+	git checkout -q "$CURRENT_BRANCH"
+}

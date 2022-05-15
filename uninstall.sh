@@ -4,7 +4,7 @@
 REPO_DIR="$(dirname $0)"
 INSTALL_INTO="/usr/local/bin"
 EXEC_FILES="git-roll"
-SCRIPT_FILES="git-roll-init git-roll-feature git-roll-hotfix git-roll-release"
+SCRIPT_FILES="git-roll-init git-roll-feature git-roll-hotfix git-roll-release git-roll-update"
 
 echo "Uninstalling git-roll from $INSTALL_INTO"
 
