@@ -30,9 +30,14 @@ we have a v1.0 release.
 **Make sure you understand what the scripts are doing before proceeding to the installations.**
 
 ## Installation
-*Note: I have only tested git-roll on an Intel Macbook running macOS Monterey Version 12.3.1. However I
-think you should be fine if your machine has bash supports. Feel free to file issues if you have
-problems installing git-roll.*
+**Installation on windows machine is not supported now. PRs are welcome to add support for windows
+machine if anyone find git-roll useful and want to use it on a windows machine.**
+
+**Prerequisite: You have a /usr/local/bin directory which is also added to your PATH.**
+
+*Note: I have only tested git-roll on an Intel Macbook running macOS Monterey Version 12.3.1. However
+if your environment satisfies the prequisite, installation should work fine. Feel free to file issues 
+if you have problems installing git-roll.*
 
 ```bash
 git clone git@github.com:marcushwz/git-roll.git
@@ -161,7 +166,7 @@ What this command is doing under the hood:
     - If there is no merge confilct:
         - Create a new annotated tag `v0.1`.
         - Push the `v0.1` tag to remote.
-        - Push latest chagnes to remote master branch.
+        - Push latest changes to remote master branch.
         - Delete both local and remote release branches.
         - Checkout to develop branch.
     - If there is merge confilct:
@@ -249,6 +254,38 @@ What this command is doing under the hood:
 1. **Force push** latest changes to the remote development branch.
 2. Delete both the local and remote release branches.
 3. Checkout to develop branch.
+
+## Pro Tips
+You can add aliases to your shell. For example, I am using `zsh` shell and I have the following
+aliases set up in my `.zshrc`:
+
+```bash
+# git-roll aliases
+alias gr="git roll"
+alias grf="git roll feature"
+alias grr="git roll release"
+alias grh="git roll hotfix"
+```
+
+Now I can do something like:
+```bash
+# init
+gr init
+
+# feature
+grf start feature1
+grf finish
+
+# release
+grr start v0.1
+grr finish
+grr cleanup v0.1
+
+# hotfix
+grh start v0.2
+grh finish
+grh cleanup v0.2
+```
 
 ## Acknowledgement
 This projects is highly inspired by:
