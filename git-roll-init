@@ -15,6 +15,21 @@ cmd_help() {
   exit 0
 }
 
+setup_commit_template() {
+cat <<EOF > ./.git/.gitmessage
+# <type>[optional scope]: <description>
+# Fixes PC-1234: Fix typo in user.rb
+# Feature: Add shipping city to policy rule
+######################## No more than 72 chars #########################
+Title
+
+# Body: Explain *what* and *why* (not *how*)
+########################### Wrap at 72 chars ###########################
+Body
+EOF
+  git config commit.template .git/.gitmessage
+}
+
 cmd_default() {
   local initialized=$(git config --get gitroll.initialized)
 	if [ "$initialized" == "true" ]; then
@@ -25,14 +40,36 @@ cmd_default() {
 
   local answer
 
-  # First step: Setting the master branch
+  # 1: Chek if inside git initialized directory
+  INSIDE_WORK_TREE=$(git rev-parse --is-inside-work-tree)
+  if [ "$INSIDE_WORK_TREE" != "true" ]; then
+    echo "git-roll is only available for git initialized directory."
+    echo "You can initialized it by running git init"
+    echo "Aborting git-roll initialization..."
+		exit 1
+  fi
+
+  # 2: Chek if origin remote is setup
+  ORIGIN_URL=$(git config --get remote.origin.url)
+  if [ -z "$ORIGIN_URL" ]; then
+    echo "Aborting git-roll initialization..."
+    echo "You must setup a remote origin first to use git-roll:"
+    echo "      git remote add origin <your_origin_url>"
+    echo "After that make your first commit (if you don't already have commits)."
+    echo "Push your commit to the newly added remote by:"
+    echo "      git push -u origin <your_current_branch>"
+    echo "You should be able to run git roll init again withou any problem :)"
+		exit 1
+  fi
+
+  # 3: Setting the master branch
   local master_branch
   printf "Branch name for production: "
   read answer
   master_branch="$answer"
   git config gitroll.branch.master "$master_branch"
 
-  # Second step: Setting the develop branch
+  # 4: Setting the develop branch
   local develop_branch
   printf "Branch name for development: "
   read answer
@@ -47,23 +84,29 @@ cmd_default() {
     git checkout -q "$develop_branch"
   fi
 
-  # Third step: Ask for feature branch prefix
+  # 5: Ask for feature branch prefix
   printf "Prefix for Feature branches?: "
   read answer
   git config gitroll.prefix.feature "$answer"
 
-  # Third step: Ask for feature branch prefix
+  # 6: Ask for feature branch prefix
   printf "Prefix for Hotfix branches?: "
   read answer
   git config gitroll.prefix.hotfix "$answer"
 
-  # Fourth step: Ask for feature branch prefix
+  # 7: Ask for feature branch prefix
   printf "Prefix for Release branches?: "
   read answer
   git config gitroll.prefix.release "$answer"
 
   git config gitroll.initialized "true"
 
-  # Push develop branch to remote
+  # 8: Setting up git commit template
+  setup_commit_template
+
+  # 9: Set initialized flag to true
+  git config gitroll.initialized "true"
+
+  # 10: Push develop branch to remote
   git push -u origin "$develop_branch"
 }
