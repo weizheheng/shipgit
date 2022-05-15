@@ -255,6 +255,19 @@ What this command is doing under the hood:
 2. Delete both the local and remote release branches.
 3. Checkout to develop branch.
 
+### git roll update
+Run this command to keep your local develop and master branch up-to-date with remote.
+
+```bash
+git roll update
+```
+
+What this command is doing under the hood:
+1. Check out to your local master branch.
+2. Pull latest changes from your remote master branch.
+3. Check out to your local development branch.
+4. Pull latest changes from your remote development branch.
+
 ## Pro Tips
 You can add aliases to your shell. For example, I am using `zsh` shell and I have the following
 aliases set up in my `.zshrc`:
@@ -262,6 +275,7 @@ aliases set up in my `.zshrc`:
 ```bash
 # git-roll aliases
 alias gr="git roll"
+alias gru="git roll update"
 alias grf="git roll feature"
 alias grr="git roll release"
 alias grh="git roll hotfix"
@@ -271,6 +285,9 @@ Now I can do something like:
 ```bash
 # init
 gr init
+
+# update
+gru
 
 # feature
 grf start feature1
