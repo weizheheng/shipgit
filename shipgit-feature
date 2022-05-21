@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: shipgit feature [action] [-options]"
+	echo "       shipgit feature start <name>"
+	echo "       shipgit feature finish"
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  usage
+  exit 0
+}
+
+handle_main_merge_conflict() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	FEATURE_BRANCH=$1
+
+	echo "There are merge conflicts between $MAIN_BRANCH and $FEATURE_BRANCH"
+	echo "Aborting the merge..."
+	git merge --abort
+	echo "Checking out back to $FEATURE_BRANCH"
+	git checkout -q "$FEATURE_BRANCH"
+	echo "Performing a rebase with $MAIN_BRANCH..."
+	git rebase "$MAIN_BRANCH"
+	echo "Please fix the conflicts and continue with:"
+	echo "    shipgit feature finish"
+	exit 1
+}
+
+cmd_start() {
+	# Creating the a new feature branch
+	PREFIX=$(git config --get shipgit.prefix.feature)
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	NAME=$3
+	FEATURE_BRANCH=$PREFIX$NAME
+
+	echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+
+	echo "Updating local $MAIN_BRANCH with remote..."
+	git pull origin "$MAIN_BRANCH"
+
+  echo "Creating $FEATURE_BRANCH base on $MAIN_BRANCH..."
+	git branch --no-track "$FEATURE_BRANCH" "$MAIN_BRANCH"
+
+  echo "Checking out to $FEATURE_BRANCH..."
+	git checkout -q "$FEATURE_BRANCH"
+
+	# Push to remote
+  echo "Pushing $FEATURE_BRANCH to remote..."
+	git push -u origin "$FEATURE_BRANCH"
+}
+
+cmd_finish() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	FEATURE_BRANCH=$(git branch --show-current)
+	PREFIX=$(git config --get shipgit.prefix.feature)
+
+	if ! [[ "$FEATURE_BRANCH" =~ ^$PRFEX.* ]]; then
+		echo "You are not in a feature branch."
+		echo "shipgit feature finish must be called in a feature branch."
+		exit 1
+	fi
+
+  echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+
+  echo "Updating local $MAIN_BRANCH with remote..."
+	git pull origin $MAIN_BRANCH
+
+  echo "Merging $FEATURE_BRANCH into $MAIN_BRANCH..."
+	git merge --log --no-ff "$FEATURE_BRANCH" || handle_main_merge_conflict "$FEATURE_BRANCH"
+
+  echo "Pushing $MAIN_BRANCH to remote..."
+	git push origin "$MAIN_BRANCH"
+
+  echo "Cleaning up $FEATURE_BRANCH branches..."
+	git branch -D "$FEATURE_BRANCH"
+	git push -d origin "$FEATURE_BRANCH"
+}
