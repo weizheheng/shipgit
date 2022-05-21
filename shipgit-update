@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+usage() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	echo "usage: shipgit update"
+  echo "This will pull latest changes from remote $MAIN_BRANCH and $PRODUCTION_BRANCH."
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  local initialized=$(git config --get shipgit.initialized)
+	if [ "$initialized" != "true" ]; then
+    echo "shipgit can only be used inside a shipgit initialized directory."
+    echo "Run shipgit init to initialize."
+		exit 0
+	fi
+
+	CURRENT_BRANCH=$(git branch --show-current)
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+
+	echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+
+	echo "Pulling latest changes from remote $MAIN_BRANCH..."
+	git pull origin "$MAIN_BRANCH"
+
+	echo "Checking out to $PRODUCTION_BRANCH..."
+	git checkout -q "$PRODUCTION_BRANCH"
+
+	echo "Pulling latest changes from remote $PRODUCTION_BRANCH..."
+	git pull origin "$PRODUCTION_BRANCH"
+
+	echo "Checking out back to your initial branch $CURRENT_BRANCH..."
+	git checkout -q "$CURRENT_BRANCH"
+}
