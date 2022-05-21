@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: shipgit init"
+  echo "This will setup your repo to work with shipgit"
+  echo "It will create a production branch if not present."
+  echo "It will create a main branch if not present."
+  echo "It will ask for preferred feature branch prefix."
+  echo "It will ask for preferred hotfix branch prefix."
+  echo "It will ask for preferred release branch prefix."
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+setup_commit_template() {
+cat <<EOF > ./.git/.gitmessage
+# Feature: Descriptive title
+######################## No more than 72 chars #########################
+Title
+
+# Body: Explain *what* and *why* (not *how*)
+########################### Wrap at 72 chars ###########################
+Body
+EOF
+  git config commit.template .git/.gitmessage
+}
+
+cmd_default() {
+  local initialized=$(git config --get shipgit.initialized)
+	if [ "$initialized" == "true" ]; then
+    echo "shipgit is already initialized."
+    echo "No further action taken."
+		exit 0
+	fi
+
+  local answer
+
+  # 1: Chek if inside git initialized directory
+  INSIDE_WORK_TREE=$(git rev-parse --is-inside-work-tree)
+  if [ "$INSIDE_WORK_TREE" != "true" ]; then
+    echo "shipgit is only available for git initialized directory."
+    echo "You can initialized it by running git init"
+    echo "Aborting shipgit initialization..."
+		exit 1
+  fi
+
+  # 2: Chek if origin remote is setup
+  ORIGIN_URL=$(git config --get remote.origin.url)
+  if [ -z "$ORIGIN_URL" ]; then
+    echo "Aborting shipgit initialization..."
+    echo "You must setup a remote origin first to use shipgit:"
+    echo "      git remote add origin <your_origin_url>"
+    echo "After that make your first commit (if you don't already have commits)."
+    echo "Push your commit to the newly added remote by:"
+    echo "      git push -u origin <your_current_branch>"
+    echo "You should be able to run shipgit init again withou any problem :)"
+		exit 1
+  fi
+
+  # 3: Setting the main branch
+  local main_branch
+  printf "Branch name for main: "
+  read answer
+  main_branch="$answer"
+  git config shipgit.branch.main "$main_branch"
+
+  # 4: Setting the production branch
+  local production_branch
+  printf "Branch name for production: "
+  read answer
+  production_branch="$answer"
+  git config shipgit.branch.production "$production_branch"
+
+  # 5: Ask for feature branch prefix
+  printf "Prefix for Feature branches? [feature/]: "
+  read answer
+  git config shipgit.prefix.feature "$answer"
+
+  # 6: Ask for feature branch prefix
+  printf "Prefix for Hotfix branches? [hotfix/]: "
+  read answer
+  git config shipgit.prefix.hotfix "$answer"
+
+  # 7: Ask for feature branch prefix
+  printf "Prefix for Release branches? [release/]: "
+  read answer
+  git config shipgit.prefix.release "$answer"
+
+  # 8: Setting up git commit template
+  setup_commit_template
+
+  # 9: Set initialized flag to true
+  git config shipgit.initialized "true"
+
+  # 10: Create and push production branch
+  if git show-ref --quiet refs/heads/$production_branch; then
+    echo "Checking out to $production_branch..."
+    git checkout -q "$production_branch"
+  else
+    echo "Creating $production_branch..."
+    git branch --no-track "$production_branch" "$main_branch"
+    echo "Checking out to $production_branch..."
+    git checkout -q "$production_branch"
+  fi
+
+  echo "Pushing $production_branch to remote..."
+  git push -u origin "$production_branch"
+
+  echo "Checking out to $main_branch..."
+  git checkout -q "$main_branch"
+}
