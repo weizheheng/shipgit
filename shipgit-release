@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: shipgit release [action] [-options]"
+	echo "       shipgit release start <version> <commit-hash>(optional)"
+	echo "       shipgit release finish <version>"
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  usage
+  exit 0
+}
+
+handle_invalid_commit_sha() {
+	COMMIT_SHA=$1
+
+	echo "Commit SHA: $COMMIT_SHA is not valid."
+	echo "Please use a valid commit SHA for the release."
+	exit 1
+}
+
+handle_main_merge_conflict() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	RELEASE_BRANCH=$1
+	TAGNAME=$2
+
+	echo "There are merge conflicts between $MAIN_BRANCH and $RELEASE_BRANCH"
+	echo "Aborting merge..."
+	git merge --abort
+	echo "Deleting tag: $TAGNAME..."
+	git tag -d "$TAGNAME"
+	echo "Checking out to $RELEASE_BRANCH..."
+	git checkout -q "$RELEASE_BRANCH"
+	echo "Rebasing with $MAIN_BRANCH..."
+	git rebase "$MAIN_BRANCH"
+	echo "Please fix the conflicts and run git rebase --continue"
+	echo "Finally, run shipgit release finish <version> again."
+	exit 1
+}
+
+handle_branch_not_exist() {
+	BRANCH=$1
+
+	echo "Branch $BRANCH does not exisit."
+	exit 1
+}
+
+cmd_start() {
+	PREFIX=$(git config --get shipgit.prefix.release)
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	TAGNAME=$3
+	COMMIT_SHA=$4
+	RELEASE_BRANCH=$PREFIX$TAGNAME
+
+	if [ "$TAGNAME" == "" ]; then
+		echo "No version is given."
+		echo "Usage: shipgit release start <version> <commit-hash>(optional)"
+		exit 1
+	fi
+
+  echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+
+	echo "Updating local $MAIN_BRANCH with remote..."
+	git pull origin "$MAIN_BRANCH"
+
+	if [ "$COMMIT_SHA" != "" ]; then
+		echo "Creating $RELEASE_BRANCH base on commit: $COMMIT_SHA..."
+		git branch --no-track "$RELEASE_BRANCH" "$COMMIT_SHA" || handle_invalid_commit_sha "$COMMIT_SHA"
+	else
+		echo "Creating $RELEASE_BRANCH base on $MAIN_BRANCH"
+		git branch --no-track "$RELEASE_BRANCH" "$MAIN_BRANCH"
+	fi
+
+  echo "Checking out to $RELEASE_BRANCH..."
+	git checkout -q "$RELEASE_BRANCH"
+
+	# Push to remote
+  echo "Pushing $RELEASE_BRANCH to remote..."
+	git push -u origin "$RELEASE_BRANCH"
+}
+
+cmd_finish() {
+	PREFIX=$(git config --get shipgit.prefix.release)
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	TAGNAME=$3
+	RELEASE_BRANCH=$PREFIX$TAGNAME
+
+	if [ "$TAGNAME" == "" ]; then
+		echo "No version is given."
+		echo "Usage: shipgit release finish <version>"
+		exit 1
+	fi
+
+  echo "Checking out to $RELEASE_BRANCH..."
+	git checkout -q "$RELEASE_BRANCH" || handle_branch_not_exist "$RELEASE_BRANCH"
+
+	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null) 
+
+	if [ "$LATEST_TAG" != "$TAGNAME" ]; then
+		echo "Creating new tag: "$TAGNAME"..."
+		git tag "$TAGNAME"
+	fi
+
+  echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+
+  echo "Updating local $MAIN_BRANCH with remote..."
+	git pull origin $MAIN_BRANCH
+
+  echo "Merging $RELEASE_BRANCH into $MAIN_BRANCH..."
+	git merge --log --no-ff "$RELEASE_BRANCH" || handle_main_merge_conflict "$RELEASE_BRANCH" "$TAGNAME"
+
+  echo "Pushing tag "$TAGNAME" to remote..."
+  git push origin "$TAGNAME"
+
+  echo "Pushing "$MAIN_BRANCH" to remote..."
+	git push origin "$MAIN_BRANCH"
+
+  echo "Checking out to $PRODUCTION_BRANCH..."
+	git checkout -q "$PRODUCTION_BRANCH"
+
+  echo "Updating local $PRODUCTION_BRANCH with remote..."
+	git pull origin $PRODUCTION_BRANCH
+
+  echo "Merging $TAGNAME into $PRODUCTION_BRANCH..."
+	git merge --ff-only "$TAGNAME"
+
+  echo "Pushing "$PRODUCTION_BRANCH" to remote..."
+	git push origin "$PRODUCTION_BRANCH"
+
+  echo "Cleaning up $RELEASE_BRANCH..."
+	git branch -D "$RELEASE_BRANCH"
+	git push -d origin "$RELEASE_BRANCH"
+
+	echo "Checking out to $MAIN_BRANCH..."
+	git checkout -q "$MAIN_BRANCH"
+}
