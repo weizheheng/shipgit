@@ -17,13 +17,9 @@ cmd_help() {
 
 setup_commit_template() {
 cat <<EOF > ./.git/.gitmessage
-# Feature: Descriptive title
-######################## No more than 72 chars #########################
-Title
 
-# Body: Explain *what* and *why* (not *how*)
-########################### Wrap at 72 chars ###########################
-Body
+######################## Descriptive title #############################
+######### Optional body: Explan *what* and *why* (not *how*) ###########
 EOF
   git config commit.template .git/.gitmessage
 }
@@ -74,17 +70,18 @@ cmd_default() {
   production_branch="$answer"
   git config shipgit.branch.production "$production_branch"
 
-  # 5: Ask for feature branch prefix
+  printf "Prefix for Semantic Version? [v]: "
+  read answer
+  git config shipgit.prefix.semantic "$answer"
+
   printf "Prefix for Feature branches? [feature/]: "
   read answer
   git config shipgit.prefix.feature "$answer"
 
-  # 6: Ask for feature branch prefix
   printf "Prefix for Hotfix branches? [hotfix/]: "
   read answer
   git config shipgit.prefix.hotfix "$answer"
 
-  # 7: Ask for feature branch prefix
   printf "Prefix for Release branches? [release/]: "
   read answer
   git config shipgit.prefix.release "$answer"

@@ -2,9 +2,9 @@
 
 usage() {
 	echo "usage: shipgit hotfix [action] [-options]"
-	echo "       shipgit hotfix start <version>"
-	echo "       shipgit hotfix finish <version>"
-	echo "       shipgit hotfix end <version>"
+	echo "       shipgit hotfix start <branch_name>"
+	echo "       shipgit hotfix finish (patch|minor|major)"
+	echo "       shipgit hotfix end"
 }
 
 cmd_help() {
@@ -25,29 +25,21 @@ handle_main_merge_conflict() {
 	echo "Please fix the conflicts yourself."
 	echo "After that, add the changes and run:"
 	echo "    git commit"
-	echo "Finally, you can finish it by:"
-	echo "    shipgit hotfix end <version>"
+	echo "Finally, checkout to the hotfix and end it by:"
+	echo "    shipgit hotfix end"
 	exit 1
 }
 
-handle_branch_not_exist() {
-	BRANCH=$1
-
-	echo "Branch $BRANCH does not exisit."
+handle_no_tag() {
+	echo "No tag to end the hotfix with"
 	exit 1
 }
 
 cmd_start() {
 	PREFIX=$(git config --get shipgit.prefix.hotfix)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
-	TAGNAME=$3
-	HOTFIX_BRANCH=$PREFIX$TAGNAME
-
-	if [ "$TAGNAME" == "" ]; then
-		echo "No version is given."
-		echo "Usage: shipgit hotfix start <version>"
-		exit 1
-	fi
+	NAME=$3
+	HOTFIX_BRANCH=$PREFIX$NAME
 
 	echo "Checking out to $PRODUCTION_BRANCH..."
 	git checkout -q "$PRODUCTION_BRANCH"
@@ -69,24 +61,43 @@ cmd_finish() {
 	PREFIX=$(git config --get shipgit.prefix.hotfix)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
-	TAGNAME=$3
-	HOTFIX_BRANCH=$PREFIX$TAGNAME
+	BUMP_TYPE=$3
+	SEMANTIC_VERSION_PREFIX=$(git config --get shipgit.prefix.semantic)
+	HOTFIX_BRANCH=$(git branch --show-current)
 
-	if [ "$TAGNAME" == "" ]; then
-		echo "No version is given."
-		echo "Usage: shipgit hotfix finish <version>"
+	if ! [[ "$HOTFIX_BRANCH" =~ ^$PREFIX.* ]]; then
+		echo "You are not in a hotfix branch."
+		echo "shipgit hotfix finish must be called in a hotfix branch."
 		exit 1
 	fi
 
-  echo "Checking out to $HOTFIX_BRANCH..."
-	git checkout -q "$HOTFIX_BRANCH" || handle_branch_not_exist "$HOTFIX_BRANCH"
+	# Fallback to prefix0.0.0 if no latest tag found
+	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")
+	if [ "$SEMANTIC_VERSION_PREFIX" != "" ]; then
+		LATEST_TAG_WITHOUT_PREFIX=$(echo $LATEST_TAG | sed "s/${SEMANTIC_VERSION_PREFIX}//")
+	else
+		LATEST_TAG_WITHOUT_PREFIX=$LATEST_TAG
+	fi
 
-	# Don't show error
-	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null) 
+	if [ "$BUMP_TYPE" == "patch" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $3+=1; print $0}')
+	elif [ "$BUMP_TYPE" == "minor" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $2+=1; $3=0; print $0}')
+	elif [ "$BUMP_TYPE" == "major" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $1+=1; $2=0; $3=0; print $0}')
+	else
+		echo "Please specify the semantic version bump type"
+		echo "Usage: shipgit hotfix finish (patch|minor|major)"
+		exit 1
+	fi
 
-	if [ "$LATEST_TAG" != "$TAGNAME" ]; then
-		echo "Creating new tag: "$TAGNAME"..."
-		git tag "$TAGNAME"
+	NEW_TAG_WITH_PREFIX=$(echo "${SEMANTIC_VERSION_PREFIX}${NEW_TAG}")
+
+	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
+		echo "Previous version: "$LATEST_TAG"..."
+		echo "Performing "$BUMP_TYPE" version bump..."
+		echo "Creating new tag: "$NEW_TAG_WITH_PREFIX"..."
+		git tag "$NEW_TAG_WITH_PREFIX"
 	fi
 
   echo "Checking out to $MAIN_BRANCH..."
@@ -98,8 +109,8 @@ cmd_finish() {
   echo "Merging $HOTFIX_BRANCH into $MAIN_BRANCH..."
 	git merge --log --no-ff "$HOTFIX_BRANCH" || handle_main_merge_conflict "$HOTFIX_BRANCH"
 
-  echo "Pushing tag "$TAGNAME" to remote..."
-  git push origin "$TAGNAME"
+  echo "Pushing tag "$NEW_TAG_WITH_PREFIX" to remote..."
+  git push origin "$NEW_TAG_WITH_PREFIX"
 
   echo "Pushing "$MAIN_BRANCH" to remote..."
 	git push origin "$MAIN_BRANCH"
@@ -110,8 +121,8 @@ cmd_finish() {
   echo "Updating local $PRODUCTION_BRANCH with remote..."
 	git pull origin $PRODUCTION_BRANCH
 
-  echo "Merging $TAGNAME into $PRODUCTION_BRANCH..."
-	git merge --ff-only "$TAGNAME"
+  echo "Merging $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH..."
+	git merge --ff-only "$NEW_TAG_WITH_PREFIX"
 
   echo "Pushing "$PRODUCTION_BRANCH" to remote..."
 	git push origin "$PRODUCTION_BRANCH"
@@ -126,22 +137,25 @@ cmd_finish() {
 
 cmd_end() {
 	PREFIX=$(git config --get shipgit.prefix.hotfix)
-	TAGNAME=$3
-	HOTFIX_BRANCH=$PREFIX$TAGNAME
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	SEMANTIC_VERSION_PREFIX=$(git config --get shipgit.prefix.semantic)
+	HOTFIX_BRANCH=$(git branch --show-current)
 
-	if [ "$TAGNAME" == "" ]; then
-		echo "No version is given."
-		echo "Usage: shipgit hotfix end <version>"
+	if ! [[ "$HOTFIX_BRANCH" =~ ^$PREFIX.* ]]; then
+		echo "You are not in a hotfix branch."
+		echo "shipgit hotfix end must be called in a hotfix branch."
 		exit 1
 	fi
+
+	# If it hits here a tag should already be created
+	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || handle_no_tag)
 
   echo "Checking out to $MAIN_BRANCH..."
 	git checkout -q "$MAIN_BRANCH"
 
-  echo "Pushing tag "$TAGNAME" to remote..."
-  git push origin "$TAGNAME"
+  echo "Pushing tag "$LATEST_TAG" to remote..."
+  git push origin "$LATEST_TAG"
 
   echo "Pushing "$MAIN_BRANCH" to remote..."
 	git push origin "$MAIN_BRANCH"
@@ -152,8 +166,8 @@ cmd_end() {
   echo "Updating local $PRODUCTION_BRANCH with remote..."
 	git pull origin $PRODUCTION_BRANCH
 
-  echo "Merging $TAGNAME into $PRODUCTION_BRANCH..."
-	git merge --ff-only "$TAGNAME"
+  echo "Merging $LATEST_TAG into $PRODUCTION_BRANCH..."
+	git merge --ff-only "$LATEST_TAG"
 
   echo "Pushing "$PRODUCTION_BRANCH" to remote..."
 	git push origin "$PRODUCTION_BRANCH"

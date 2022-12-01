@@ -2,8 +2,8 @@
 
 usage() {
 	echo "usage: shipgit release [action] [-options]"
-	echo "       shipgit release start <version> <commit-hash>(optional)"
-	echo "       shipgit release finish <version>"
+	echo "       shipgit release start <release_name>"
+	echo "       shipgit release finish (patch|minor|major)"
 }
 
 cmd_help() {
@@ -28,6 +28,7 @@ handle_main_merge_conflict() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	RELEASE_BRANCH=$1
 	TAGNAME=$2
+	BUMP_TYPE=$3
 
 	echo "There are merge conflicts between $MAIN_BRANCH and $RELEASE_BRANCH"
 	echo "Aborting merge..."
@@ -39,29 +40,16 @@ handle_main_merge_conflict() {
 	echo "Rebasing with $MAIN_BRANCH..."
 	git rebase "$MAIN_BRANCH"
 	echo "Please fix the conflicts and run git rebase --continue"
-	echo "Finally, run shipgit release finish <version> again."
-	exit 1
-}
-
-handle_branch_not_exist() {
-	BRANCH=$1
-
-	echo "Branch $BRANCH does not exisit."
+	echo "Finally, run shipgit release finish $BUMP_TYPE again."
 	exit 1
 }
 
 cmd_start() {
 	PREFIX=$(git config --get shipgit.prefix.release)
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
-	TAGNAME=$3
+	NAME=$3
 	COMMIT_SHA=$4
-	RELEASE_BRANCH=$PREFIX$TAGNAME
-
-	if [ "$TAGNAME" == "" ]; then
-		echo "No version is given."
-		echo "Usage: shipgit release start <version> <commit-hash>(optional)"
-		exit 1
-	fi
+	RELEASE_BRANCH=$PREFIX$NAME
 
   echo "Checking out to $MAIN_BRANCH..."
 	git checkout -q "$MAIN_BRANCH"
@@ -69,13 +57,16 @@ cmd_start() {
 	echo "Updating local $MAIN_BRANCH with remote..."
 	git pull origin "$MAIN_BRANCH"
 
-	if [ "$COMMIT_SHA" != "" ]; then
-		echo "Creating $RELEASE_BRANCH base on commit: $COMMIT_SHA..."
-		git branch --no-track "$RELEASE_BRANCH" "$COMMIT_SHA" || handle_invalid_commit_sha "$COMMIT_SHA"
-	else
-		echo "Creating $RELEASE_BRANCH base on $MAIN_BRANCH"
-		git branch --no-track "$RELEASE_BRANCH" "$MAIN_BRANCH"
-	fi
+	# if [ "$COMMIT_SHA" != "" ]; then
+	# 	echo "Creating $RELEASE_BRANCH base on commit: $COMMIT_SHA..."
+	# 	git branch --no-track "$RELEASE_BRANCH" "$COMMIT_SHA" || handle_invalid_commit_sha "$COMMIT_SHA"
+	# else
+	# 	echo "Creating $RELEASE_BRANCH base on $MAIN_BRANCH"
+	# 	git branch --no-track "$RELEASE_BRANCH" "$MAIN_BRANCH"
+	# fi
+
+	echo "Creating $RELEASE_BRANCH base on $MAIN_BRANCH"
+	git branch --no-track "$RELEASE_BRANCH" "$MAIN_BRANCH"
 
   echo "Checking out to $RELEASE_BRANCH..."
 	git checkout -q "$RELEASE_BRANCH"
@@ -89,23 +80,43 @@ cmd_finish() {
 	PREFIX=$(git config --get shipgit.prefix.release)
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
-	TAGNAME=$3
-	RELEASE_BRANCH=$PREFIX$TAGNAME
+	BUMP_TYPE=$3
+	RELEASE_BRANCH=$(git branch --show-current)
+	SEMANTIC_VERSION_PREFIX=$(git config --get shipgit.prefix.semantic)
 
-	if [ "$TAGNAME" == "" ]; then
-		echo "No version is given."
-		echo "Usage: shipgit release finish <version>"
+	if ! [[ "$RELEASE_BRANCH" =~ ^$PREFIX.* ]]; then
+		echo "You are not in a release branch."
+		echo "shipgit release finish must be called in a release branch."
 		exit 1
 	fi
 
-  echo "Checking out to $RELEASE_BRANCH..."
-	git checkout -q "$RELEASE_BRANCH" || handle_branch_not_exist "$RELEASE_BRANCH"
+	# Fallback to prefix0.0.0 if no latest tag found
+	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")
+	if [ "$SEMANTIC_VERSION_PREFIX" != "" ]; then
+		LATEST_TAG_WITHOUT_PREFIX=$(echo $LATEST_TAG | sed "s/${SEMANTIC_VERSION_PREFIX}//")
+	else
+		LATEST_TAG_WITHOUT_PREFIX=$LATEST_TAG
+	fi
 
-	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null) 
+	if [ "$BUMP_TYPE" == "patch" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $3+=1; print $0}')
+	elif [ "$BUMP_TYPE" == "minor" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $2+=1; $3=0; print $0}')
+	elif [ "$BUMP_TYPE" == "major" ]; then
+		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $1+=1; $2=0; $3=0; print $0}')
+	else
+		echo "Please specify the semantic version bump type"
+		echo "Usage: shipgit release finish (patch|minor|major)"
+		exit 1
+	fi
 
-	if [ "$LATEST_TAG" != "$TAGNAME" ]; then
-		echo "Creating new tag: "$TAGNAME"..."
-		git tag "$TAGNAME"
+	NEW_TAG_WITH_PREFIX=$(echo "${SEMANTIC_VERSION_PREFIX}${NEW_TAG}")
+
+	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
+		echo "Previous version: "$LATEST_TAG"..."
+		echo "Performing "$BUMP_TYPE" version bump..."
+		echo "Creating new tag: "$NEW_TAG_WITH_PREFIX"..."
+		git tag "$NEW_TAG_WITH_PREFIX"
 	fi
 
   echo "Checking out to $MAIN_BRANCH..."
@@ -115,10 +126,10 @@ cmd_finish() {
 	git pull origin $MAIN_BRANCH
 
   echo "Merging $RELEASE_BRANCH into $MAIN_BRANCH..."
-	git merge --log --no-ff "$RELEASE_BRANCH" || handle_main_merge_conflict "$RELEASE_BRANCH" "$TAGNAME"
+	git merge --log --no-ff "$RELEASE_BRANCH" || handle_main_merge_conflict "$RELEASE_BRANCH" "$NEW_TAG_WITH_PREFIX" "$BUMP_TYPE"
 
-  echo "Pushing tag "$TAGNAME" to remote..."
-  git push origin "$TAGNAME"
+  echo "Pushing tag "$NEW_TAG_WITH_PREFIX" to remote..."
+  git push origin "$NEW_TAG_WITH_PREFIX"
 
   echo "Pushing "$MAIN_BRANCH" to remote..."
 	git push origin "$MAIN_BRANCH"
@@ -129,8 +140,8 @@ cmd_finish() {
   echo "Updating local $PRODUCTION_BRANCH with remote..."
 	git pull origin $PRODUCTION_BRANCH
 
-  echo "Merging $TAGNAME into $PRODUCTION_BRANCH..."
-	git merge --ff-only "$TAGNAME"
+  echo "Merging $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH..."
+	git merge --ff-only "$NEW_TAG_WITH_PREFIX"
 
   echo "Pushing "$PRODUCTION_BRANCH" to remote..."
 	git push origin "$PRODUCTION_BRANCH"

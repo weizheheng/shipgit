@@ -27,8 +27,8 @@ handle_main_merge_conflict() {
 	git checkout -q "$FEATURE_BRANCH"
 	echo "Performing a rebase with $MAIN_BRANCH..."
 	git rebase "$MAIN_BRANCH"
-	echo "Please fix the conflicts and continue with:"
-	echo "    shipgit feature finish"
+	echo "Please fix the conflicts and run git rebase --continue"
+	echo "Finally, run shipgit feature finish"
 	exit 1
 }
 
@@ -61,7 +61,7 @@ cmd_finish() {
 	FEATURE_BRANCH=$(git branch --show-current)
 	PREFIX=$(git config --get shipgit.prefix.feature)
 
-	if ! [[ "$FEATURE_BRANCH" =~ ^$PRFEX.* ]]; then
+	if ! [[ "$FEATURE_BRANCH" =~ ^$PREFIX.* ]]; then
 		echo "You are not in a feature branch."
 		echo "shipgit feature finish must be called in a feature branch."
 		exit 1
