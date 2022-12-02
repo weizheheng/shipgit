@@ -35,6 +35,17 @@ handle_no_tag() {
 	exit 1
 }
 
+handle_production_rebase_conflict() {
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	HOTFIX_BRANCH=$1
+	BUMP_TYPE=$2
+
+	echo "There are conflicts between $HOTFIX_BRANCH and $PRODUCTION_BRANCH"
+	echo "Please fix the conflicts and run git rebase --continue"
+	echo "Finally, run shipgit hotfix finish $BUMP_TYPE again."
+	exit 1
+}
+
 cmd_start() {
 	PREFIX=$(git config --get shipgit.prefix.hotfix)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
@@ -46,6 +57,9 @@ cmd_start() {
 
 	echo "Updating local $PRODUCTION_BRANCH with remote..."
 	git pull origin "$PRODUCTION_BRANCH"
+
+	echo "Fetching latest tags..."
+	git fetch --tags
 
   echo "Creating $HOTFIX_BRANCH base on $PRODUCTION_BRANCH..."
 	git branch --no-track "$HOTFIX_BRANCH" "$PRODUCTION_BRANCH"
@@ -70,6 +84,21 @@ cmd_finish() {
 		echo "shipgit hotfix finish must be called in a hotfix branch."
 		exit 1
 	fi
+
+	echo "Checking out to $PRODUCTION_BRANCH..."
+	git checkout -q "$PRODUCTION_BRANCH"
+
+	echo "Updating local $PRODUCTION_BRANCH with remote..."
+	git pull origin "$PRODUCTION_BRANCH"
+
+	echo "Fetching latest tags..."
+	git fetch --tags
+
+	echo "Checking out to $HOTFIX_BRANCH..."
+	git checkout -q "$HOTFIX_BRANCH"
+
+	echo "Rebasing with $PRODUCTION_BRANCH..."
+	git rebase "$PRODUCTION_BRANCH" || handle_production_rebase_conflict "$HOTFIX_BRANCH" "$BUMP_TYPE"
 
 	# Fallback to prefix0.0.0 if no latest tag found
 	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")
@@ -97,7 +126,7 @@ cmd_finish() {
 		echo "Previous version: "$LATEST_TAG"..."
 		echo "Performing "$BUMP_TYPE" version bump..."
 		echo "Creating new tag: "$NEW_TAG_WITH_PREFIX"..."
-		git tag "$NEW_TAG_WITH_PREFIX"
+		git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX"
 	fi
 
   echo "Checking out to $MAIN_BRANCH..."

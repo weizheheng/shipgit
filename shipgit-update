@@ -24,6 +24,9 @@ cmd_default() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 
+	echo "Fetching latest tags..."
+	git fetch --tags
+
 	echo "Checking out to $MAIN_BRANCH..."
 	git checkout -q "$MAIN_BRANCH"
 

@@ -57,6 +57,9 @@ cmd_start() {
 	echo "Updating local $MAIN_BRANCH with remote..."
 	git pull origin "$MAIN_BRANCH"
 
+	echo "Fetching latest tags..."
+	git fetch --tags
+
 	# if [ "$COMMIT_SHA" != "" ]; then
 	# 	echo "Creating $RELEASE_BRANCH base on commit: $COMMIT_SHA..."
 	# 	git branch --no-track "$RELEASE_BRANCH" "$COMMIT_SHA" || handle_invalid_commit_sha "$COMMIT_SHA"
@@ -90,6 +93,9 @@ cmd_finish() {
 		exit 1
 	fi
 
+	echo "Fetching latest tags..."
+	git fetch --tags
+
 	# Fallback to prefix0.0.0 if no latest tag found
 	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")
 	if [ "$SEMANTIC_VERSION_PREFIX" != "" ]; then
@@ -116,7 +122,7 @@ cmd_finish() {
 		echo "Previous version: "$LATEST_TAG"..."
 		echo "Performing "$BUMP_TYPE" version bump..."
 		echo "Creating new tag: "$NEW_TAG_WITH_PREFIX"..."
-		git tag "$NEW_TAG_WITH_PREFIX"
+		git tag -a "$NEW_TAG_WITH_PREFIX" -m "RELEASE: $NEW_TAG_WITH_PREFIX"
 	fi
 
   echo "Checking out to $MAIN_BRANCH..."
