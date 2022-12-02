@@ -19,6 +19,7 @@ setup_commit_template() {
 cat <<EOF > ./.git/.gitmessage
 
 ######################## Descriptive title #############################
+
 ######### Optional body: Explan *what* and *why* (not *how*) ###########
 EOF
   git config commit.template .git/.gitmessage
