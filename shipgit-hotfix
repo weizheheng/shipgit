@@ -4,6 +4,7 @@ usage() {
 	echo "usage: shipgit hotfix [action] [-options]"
 	echo "       shipgit hotfix start <branch_name>"
 	echo "       shipgit hotfix finish (patch|minor|major)"
+	echo "       shipgit hotfix sync"
 	echo "       shipgit hotfix end"
 }
 
@@ -21,28 +22,72 @@ handle_main_merge_conflict() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	HOTFIX_BRANCH=$1
 
+	echo "+++++++++++++++++++++++++++ MERGE CONFLICT +++++++++++++++++++++++++++"
+	echo ""
 	echo "There are merge conflicts between $MAIN_BRANCH and $HOTFIX_BRANCH"
-	echo "Please fix the conflicts yourself."
-	echo "After that, add the changes and run:"
-	echo "    git commit"
-	echo "Finally, checkout to the hotfix and end it by:"
-	echo "    shipgit hotfix end"
+	echo ""
+	echo "Please fix the conflicts and when you are done run:"
+	echo "      $ git commit"
+	echo ""
+	echo "After that you can checkout back to your hotfix branch and run:"
+	echo "      $ shipgit hotfix end"
+	echo ""
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 	exit 1
 }
 
 handle_no_tag() {
+	echo "++++++++++ ATTENTION ++++++++++"
+	echo ""
 	echo "No tag to end the hotfix with"
+	echo ""
+	echo "+++++++++++++++++++++++++++++++"
 	exit 1
 }
 
-handle_production_rebase_conflict() {
+handle_hotfix_finish_conflict() {
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 	HOTFIX_BRANCH=$1
 	BUMP_TYPE=$2
 
+	echo "++++++++++++++++++++++++++ REBASE CONFLICT +++++++++++++++++++++++++++"
+	echo ""
 	echo "There are conflicts between $HOTFIX_BRANCH and $PRODUCTION_BRANCH"
-	echo "Please fix the conflicts and run git rebase --continue"
-	echo "Finally, run shipgit hotfix finish $BUMP_TYPE again."
+	echo ""
+	echo "Please fix the conflicts and when you are done, run:"
+	echo "      $ git rebase --continue"
+	echo ""
+	echo "After that run:"
+	echo "      $ shipgit hotfix finish $BUMP_TYPE"
+	echo ""
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+	exit 1
+}
+
+handle_hotfix_sync_conflict() {
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	HOTFIX_BRANCH=$1
+
+	echo "++++++++++++++++++++++++++ REBASE CONFLICT +++++++++++++++++++++++++++"
+	echo ""
+	echo "There are conflicts while between $HOTFIX_BRANCH with $PRODUCTION_BRANCH"
+	echo ""
+	echo "Please fix the conflicts and run:"
+	echo "      git rebase --continue"
+	echo ""
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+	exit 1
+}
+
+handle_not_in_hotfix_branch() {
+	ACTION=$1
+
+	echo "+++++++++++++++++++++++ ATTENTION +++++++++++++++++++++++"
+	echo ""
+	echo "You are not in a hotfix branch."
+	echo "shipgit hotfix $ACTION must be called in a hotfix branch."
+	echo ""
+	echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 	exit 1
 }
 
@@ -52,23 +97,23 @@ cmd_start() {
 	NAME=$3
 	HOTFIX_BRANCH=$PREFIX$NAME
 
-	echo "Checking out to $PRODUCTION_BRANCH..."
-	git checkout -q "$PRODUCTION_BRANCH"
+	echo "======================= Starting hotfix branch ======================="
+	echo ""
+	echo "Steps:"
 
-	echo "Updating local $PRODUCTION_BRANCH with remote..."
-	git pull origin "$PRODUCTION_BRANCH"
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin "$PRODUCTION_BRANCH" &> /dev/null
+	git fetch --tags &> /dev/null
+	echo "    1. Pulled latest changes from remote $PRODUCTION_BRANCH."
 
-	echo "Fetching latest tags..."
-	git fetch --tags
+	git branch --no-track "$HOTFIX_BRANCH" "$PRODUCTION_BRANCH" &> /dev/null
+	echo "    2. Created new $HOTFIX_BRANCH branch based on $PRODUCTION_BRANCH."
 
-  echo "Creating $HOTFIX_BRANCH base on $PRODUCTION_BRANCH..."
-	git branch --no-track "$HOTFIX_BRANCH" "$PRODUCTION_BRANCH"
-
-  echo "Checking out to $HOTFIX_BRANCH..."
-	git checkout -q "$HOTFIX_BRANCH"
-
-  echo "Pushing $HOTFIX_BRANCH to remote..."
-	git push -u origin "$HOTFIX_BRANCH"
+	git checkout -q "$HOTFIX_BRANCH" &> /dev/null
+	git push -u origin "$HOTFIX_BRANCH" &> /dev/null
+	echo "    3. Pushed $HOTFIX_BRANCH to remote and added upstream reference."
+	echo ""
+	echo "======================================================================"
 }
 
 cmd_finish() {
@@ -80,25 +125,32 @@ cmd_finish() {
 	HOTFIX_BRANCH=$(git branch --show-current)
 
 	if ! [[ "$HOTFIX_BRANCH" =~ ^$PREFIX.* ]]; then
-		echo "You are not in a hotfix branch."
-		echo "shipgit hotfix finish must be called in a hotfix branch."
+		handle_not_in_hotfix_branch "finish"
+	fi
+
+	if ! [[ "$BUMP_TYPE" =~ (patch|minor|major) ]]; then
+		echo "++++++++++++++++++ ATTENTION ++++++++++++++++++"
+		echo ""
+		echo "Please specify the semantic version bump type."
+		echo "Usage:"
+		echo "    shipgit hotfix finish (patch|minor|major)"
+		echo ""
+		echo "+++++++++++++++++++++++++++++++++++++++++++++++"
 		exit 1
 	fi
 
-	echo "Checking out to $PRODUCTION_BRANCH..."
-	git checkout -q "$PRODUCTION_BRANCH"
+	echo "=========================== Finishing hotfix branch ==========================="
+	echo ""
+	echo "Steps:"
 
-	echo "Updating local $PRODUCTION_BRANCH with remote..."
-	git pull origin "$PRODUCTION_BRANCH"
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin "$PRODUCTION_BRANCH" &> /dev/null
+	git fetch --tags &> /dev/null
+	echo "    1. Pulled latest changes from $PRODUCTION_BRANCH."
 
-	echo "Fetching latest tags..."
-	git fetch --tags
-
-	echo "Checking out to $HOTFIX_BRANCH..."
-	git checkout -q "$HOTFIX_BRANCH"
-
-	echo "Rebasing with $PRODUCTION_BRANCH..."
-	git rebase "$PRODUCTION_BRANCH" || handle_production_rebase_conflict "$HOTFIX_BRANCH" "$BUMP_TYPE"
+	git checkout -q "$HOTFIX_BRANCH" &> /dev/null
+	git rebase "$PRODUCTION_BRANCH" &> /dev/null || handle_hotfix_finish_conflict "$HOTFIX_BRANCH" "$BUMP_TYPE"
+	echo "    2. Rebased $HOTFIX_BRANCH with $PRODUCTION_BRANCH."
 
 	# Fallback to prefix0.0.0 if no latest tag found
 	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")
@@ -114,54 +166,70 @@ cmd_finish() {
 		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $2+=1; $3=0; print $0}')
 	elif [ "$BUMP_TYPE" == "major" ]; then
 		NEW_TAG=$(echo $LATEST_TAG_WITHOUT_PREFIX | awk -F. '{OFS="."; $1+=1; $2=0; $3=0; print $0}')
-	else
-		echo "Please specify the semantic version bump type"
-		echo "Usage: shipgit hotfix finish (patch|minor|major)"
-		exit 1
 	fi
 
 	NEW_TAG_WITH_PREFIX=$(echo "${SEMANTIC_VERSION_PREFIX}${NEW_TAG}")
 
 	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
-		echo "Previous version: "$LATEST_TAG"..."
-		echo "Performing "$BUMP_TYPE" version bump..."
-		echo "Creating new tag: "$NEW_TAG_WITH_PREFIX"..."
-		git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX"
+		git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX" &> /dev/null
+	fi
+	echo "    3. Added annotated tag $NEW_TAG_WITH_PREFIX."
+
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git pull origin $MAIN_BRANCH &> /dev/null
+	# For hotfix since we branch out from the production branch.
+	# Therefore, we can't use --ff-only to merge because main branch is usually
+	# much ahead of the production branch.
+	git merge --log --no-ff "$HOTFIX_BRANCH" &> /dev/null || handle_main_merge_conflict "$HOTFIX_BRANCH"
+	echo "    4. Merged $HOTFIX_BRANCH into $MAIN_BRANCH."
+
+  git push origin "$NEW_TAG_WITH_PREFIX" &> /dev/null
+	git push origin "$MAIN_BRANCH" &> /dev/null
+	echo "    5. Pushed tag $NEW_TAG_WITH_PREFIX and $MAIN_BRANCH to remote."
+
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin $PRODUCTION_BRANCH &> /dev/null
+	git merge --ff-only "$NEW_TAG_WITH_PREFIX" &> /dev/null
+	echo "    6. Merged annotated tag $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH."
+
+	git push origin "$PRODUCTION_BRANCH" &> /dev/null
+	echo "    7. Pushed $PRODUCTION_BRANCH to remote."
+
+	git branch -D "$HOTFIX_BRANCH" &> /dev/null
+	git push -d origin "$HOTFIX_BRANCH" &> /dev/null
+	echo "    8. Deleted $HOTFIX_BRANCH locally and remotely."
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+
+	echo ""
+	echo "Summary:"
+	echo "    1. Version has been bumped from $LATEST_TAG to $NEW_TAG_WITH_PREFIX"
+	echo ""
+	echo "==============================================================================="
+}
+
+cmd_sync() {
+	PREFIX=$(git config --get shipgit.prefix.hotfix)
+	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
+	HOTFIX_BRANCH=$(git branch --show-current)
+
+	if ! [[ "$HOTFIX_BRANCH" =~ ^$PREFIX.* ]]; then
+		handle_not_in_hotfix_branch "sync"
 	fi
 
-  echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	echo "======================= Syncing hotfix branch ======================="
+	echo ""
+	echo "Steps:"
 
-  echo "Updating local $MAIN_BRANCH with remote..."
-	git pull origin $MAIN_BRANCH
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin $PRODUCTION_BRANCH &> /dev/null
+	git fetch --tags &> /dev/null
+	echo "    1. Pulled latest changes from $PRODUCTION_BRANCH."
 
-  echo "Merging $HOTFIX_BRANCH into $MAIN_BRANCH..."
-	git merge --log --no-ff "$HOTFIX_BRANCH" || handle_main_merge_conflict "$HOTFIX_BRANCH"
-
-  echo "Pushing tag "$NEW_TAG_WITH_PREFIX" to remote..."
-  git push origin "$NEW_TAG_WITH_PREFIX"
-
-  echo "Pushing "$MAIN_BRANCH" to remote..."
-	git push origin "$MAIN_BRANCH"
-
-  echo "Checking out to $PRODUCTION_BRANCH..."
-	git checkout -q "$PRODUCTION_BRANCH"
-
-  echo "Updating local $PRODUCTION_BRANCH with remote..."
-	git pull origin $PRODUCTION_BRANCH
-
-  echo "Merging $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH..."
-	git merge --ff-only "$NEW_TAG_WITH_PREFIX"
-
-  echo "Pushing "$PRODUCTION_BRANCH" to remote..."
-	git push origin "$PRODUCTION_BRANCH"
-
-  echo "Cleaning up $HOTFIX_BRANCH..."
-	git branch -D "$HOTFIX_BRANCH"
-	git push -d origin "$HOTFIX_BRANCH"
-
-  echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	git checkout -q "$HOTFIX_BRANCH" &> /dev/null
+	git rebase "$PRODUCTION_BRANCH" &> /dev/null || handle_hotfix_sync_conflict "$HOTFIX_BRANCH"
+	echo "    2. Rebased $HOTFIX_BRANCH with $PRODUCTION_BRANCH."
+	echo ""
+	echo "====================================================================="
 }
 
 cmd_end() {
@@ -172,39 +240,36 @@ cmd_end() {
 	HOTFIX_BRANCH=$(git branch --show-current)
 
 	if ! [[ "$HOTFIX_BRANCH" =~ ^$PREFIX.* ]]; then
-		echo "You are not in a hotfix branch."
-		echo "shipgit hotfix end must be called in a hotfix branch."
-		exit 1
+		handle_not_in_hotfix_branch "end"
 	fi
 
 	# If it hits here a tag should already be created
 	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || handle_no_tag)
 
-  echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	echo "=========================== Ending hotfix branch ==========================="
+	echo ""
+	echo "Steps:"
 
-  echo "Pushing tag "$LATEST_TAG" to remote..."
-  git push origin "$LATEST_TAG"
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+  git push origin "$LATEST_TAG" &> /dev/null
+	git push origin "$MAIN_BRANCH" &> /dev/null
+	echo "    1. Pushed $LATEST_TAG and $MAIN_BRANCH to remote."
 
-  echo "Pushing "$MAIN_BRANCH" to remote..."
-	git push origin "$MAIN_BRANCH"
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin $PRODUCTION_BRANCH &> /dev/null
+	git merge --ff-only "$LATEST_TAG" &> /dev/null
+	echo "    2. Merged annotated tag $LATEST_TAG into $PRODUCTION_BRANCH."
 
-  echo "Checking out to $PRODUCTION_BRANCH..."
-	git checkout -q "$PRODUCTION_BRANCH"
+	git push origin "$PRODUCTION_BRANCH" &> /dev/null
+	echo "    3. Pushed $PRODUCTION_BRANCH to remote."
 
-  echo "Updating local $PRODUCTION_BRANCH with remote..."
-	git pull origin $PRODUCTION_BRANCH
-
-  echo "Merging $LATEST_TAG into $PRODUCTION_BRANCH..."
-	git merge --ff-only "$LATEST_TAG"
-
-  echo "Pushing "$PRODUCTION_BRANCH" to remote..."
-	git push origin "$PRODUCTION_BRANCH"
-
-  echo "Cleaning up $HOTFIX_BRANCH..."
-	git branch -D "$HOTFIX_BRANCH"
-	git push -d origin "$HOTFIX_BRANCH"
-
-  echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git branch -D "$HOTFIX_BRANCH" &> /dev/null
+	git push -d origin "$HOTFIX_BRANCH" &> /dev/null
+	echo "    4. Deleted $HOTFIX_BRANCH locally and remotely."
+	echo ""
+	echo "Summary:"
+	echo "    1. New version is now at $LATEST_TAG."
+	echo ""
+	echo "============================================================================"
 }

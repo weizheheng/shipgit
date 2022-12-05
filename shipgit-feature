@@ -4,6 +4,7 @@ usage() {
 	echo "usage: shipgit feature [action] [-options]"
 	echo "       shipgit feature start <name>"
 	echo "       shipgit feature finish"
+	echo "       shipgit feature sync"
 }
 
 cmd_help() {
@@ -16,21 +17,51 @@ cmd_default() {
   exit 0
 }
 
-handle_main_merge_conflict() {
+handle_feature_finish_conflict() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	FEATURE_BRANCH=$1
 
-	echo "There are merge conflicts between $MAIN_BRANCH and $FEATURE_BRANCH"
-	echo "Aborting the merge..."
-	git merge --abort
-	echo "Checking out back to $FEATURE_BRANCH"
-	git checkout -q "$FEATURE_BRANCH"
-	echo "Performing a rebase with $MAIN_BRANCH..."
-	git rebase "$MAIN_BRANCH"
-	echo "Please fix the conflicts and run git rebase --continue"
-	echo "Finally, run shipgit feature finish"
+	echo "++++++++++++++++++++++++++ REBASE CONFLICT +++++++++++++++++++++++++++"
+	echo ""
+	echo "There are conflicts between $FEATURE_BRANCH and $MAIN_BRANCH"
+	echo ""
+	echo "Please fix the conflicts and when you are done, run:"
+	echo "      $ git rebase --continue"
+	echo ""
+	echo "After that you can checkout back to your hotfix branch and run:"
+	echo "      $ shipgit feature finish"
+	echo ""
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 	exit 1
 }
+
+handle_feature_sync_conflict() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	FEATURE_BRANCH=$1
+
+	echo "++++++++++++++++++++++++++ REBASE CONFLICT +++++++++++++++++++++++++++"
+	echo ""
+	echo "There are conflicts between $FEATURE_BRANCH and $MAIN_BRANCH"
+	echo ""
+	echo "Please fix the conflicts and when you are done, run:"
+	echo "      $ git rebase --continue"
+	echo ""
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+	exit 1
+}
+
+handle_not_in_feature_branch() {
+	ACTION = $1
+
+	echo "+++++++++++++++++++++++ ATTENTION +++++++++++++++++++++++"
+	echo ""
+	echo "You are not in a feature branch."
+	echo "shipgit feature $ACTION must be called in a feature branch."
+	echo ""
+	echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+	exit 1
+}
+
 
 cmd_start() {
 	# Creating the a new feature branch
@@ -39,21 +70,48 @@ cmd_start() {
 	NAME=$3
 	FEATURE_BRANCH=$PREFIX$NAME
 
-	echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	echo "=========================== Starting feature branch ==========================="
+	echo ""
+	echo "Steps:"
 
-	echo "Updating local $MAIN_BRANCH with remote..."
-	git pull origin "$MAIN_BRANCH"
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git pull origin "$MAIN_BRANCH" &> /dev/null
+	echo "    1. Pulled latest changes from remote $MAIN_BRANCH."
 
-  echo "Creating $FEATURE_BRANCH base on $MAIN_BRANCH..."
-	git branch --no-track "$FEATURE_BRANCH" "$MAIN_BRANCH"
+	git branch --no-track "$FEATURE_BRANCH" "$MAIN_BRANCH" &> /dev/null
+	echo "    2. Created new $FEATURE_BRANCH branch based on $MAIN_BRANCH."
 
-  echo "Checking out to $FEATURE_BRANCH..."
-	git checkout -q "$FEATURE_BRANCH"
+	git checkout -q "$FEATURE_BRANCH" &> /dev/null
+	git push -u origin "$FEATURE_BRANCH" &> /dev/null
+	echo "    3. Pushed $FEATURE_BRANCH to remote and added upstream reference."
+	echo ""
+	echo "==============================================================================="
+}
 
-	# Push to remote
-  echo "Pushing $FEATURE_BRANCH to remote..."
-	git push -u origin "$FEATURE_BRANCH"
+cmd_sync() {
+	MAIN_BRANCH=$(git config --get shipgit.branch.main)
+	FEATURE_BRANCH=$(git branch --show-current)
+	PREFIX=$(git config --get shipgit.prefix.feature)
+
+	if ! [[ "$FEATURE_BRANCH" =~ ^$PREFIX.* ]]; then
+		handle_not_in_feature_branch "sync"
+	fi
+
+	echo "======================= Syncing feature branch ======================="
+	echo ""
+	echo "Steps:"
+
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git pull origin $MAIN_BRANCH &> /dev/null
+	git fetch --tags &> /dev/null
+
+	echo "    1. Pulled latest changes from $MAIN_BRANCH."
+
+	git checkout -q "$FEATURE_BRANCH" &> /dev/null
+	git rebase "$MAIN_BRANCH" &> /dev/null || handle_feature_sync_conflict "$FEATURE_BRANCH"
+	echo "    2. Rebased $FEATURE_BRANCH with $MAIN_BRANCH."
+	echo ""
+	echo "======================================================================"
 }
 
 cmd_finish() {
@@ -62,24 +120,32 @@ cmd_finish() {
 	PREFIX=$(git config --get shipgit.prefix.feature)
 
 	if ! [[ "$FEATURE_BRANCH" =~ ^$PREFIX.* ]]; then
-		echo "You are not in a feature branch."
-		echo "shipgit feature finish must be called in a feature branch."
-		exit 1
+		handle_not_in_feature_branch "finish"
 	fi
 
-  echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	echo "=========================== Finishing feature branch ==========================="
+	echo ""
+	echo "Steps:"
 
-  echo "Updating local $MAIN_BRANCH with remote..."
-	git pull origin $MAIN_BRANCH
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git pull origin $MAIN_BRANCH &> /dev/null
+	git fetch --tags &> /dev/null
+	echo "    1. Pulled latest changes from remote $MAIN_BRANCH."
 
-  echo "Merging $FEATURE_BRANCH into $MAIN_BRANCH..."
-	git merge --log --no-ff "$FEATURE_BRANCH" || handle_main_merge_conflict "$FEATURE_BRANCH"
+	git checkout -q "$FEATURE_BRANCH" &> /dev/null
+	git rebase "$MAIN_BRANCH" &> /dev/null || handle_feature_finish_conflict "$FEATURE_BRANCH"
+	echo "    2. Rebased $FEATURE_BRANCH with $MAIN_BRANCH."
 
-  echo "Pushing $MAIN_BRANCH to remote..."
-	git push origin "$MAIN_BRANCH"
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git merge --log --ff-only "$FEATURE_BRANCH" &> /dev/null
+	echo "    3. Merged $FEATURE_BRANCH into $MAIN_BRANCH."
 
-  echo "Cleaning up $FEATURE_BRANCH branches..."
-	git branch -D "$FEATURE_BRANCH"
-	git push -d origin "$FEATURE_BRANCH"
+	git push origin "$MAIN_BRANCH" &> /dev/null
+	echo "    4. Pushed $MAIN_BRANCH to remote."
+
+	git branch -D "$FEATURE_BRANCH" &> /dev/null
+	git push -d origin "$FEATURE_BRANCH" &> /dev/null
+	echo "    5. Deleted $FEATURE_BRANCH locally and remotely."
+	echo ""
+	echo "================================================================================"
 }
