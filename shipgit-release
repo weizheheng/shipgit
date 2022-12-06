@@ -3,7 +3,7 @@
 usage() {
 	echo "usage: shipgit release [action] [-options]"
 	echo "       shipgit release start <release_name>"
-	echo "       shipgit release finish (patch|minor|major)"
+	echo "       shipgit release finish (patch|minor|major) -m(optional)"
 	echo "       shipgit release sync"
 }
 
@@ -119,6 +119,7 @@ cmd_finish() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 	BUMP_TYPE=$3
+	AUTO_COMMIT=$4
 	RELEASE_BRANCH=$(git branch --show-current)
 	SEMANTIC_VERSION_PREFIX=$(git config --get shipgit.prefix.semantic)
 
@@ -169,7 +170,11 @@ cmd_finish() {
 	NEW_TAG_WITH_PREFIX=$(echo "${SEMANTIC_VERSION_PREFIX}${NEW_TAG}")
 
 	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
-		git tag -a "$NEW_TAG_WITH_PREFIX" -m "RELEASE: $NEW_TAG_WITH_PREFIX" &> /dev/null
+		if [ "$AUTO_COMMIT" == "-m" ]; then
+			git tag -a "$NEW_TAG_WITH_PREFIX" -m "RELEASE: $NEW_TAG_WITH_PREFIX" &> /dev/null
+		else
+			git tag -a "$NEW_TAG_WITH_PREFIX"
+		fi
 	fi
 	echo "    3. Added annotated tag $NEW_TAG_WITH_PREFIX."
 

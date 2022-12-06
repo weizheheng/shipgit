@@ -3,7 +3,7 @@
 usage() {
 	echo "usage: shipgit hotfix [action] [-options]"
 	echo "       shipgit hotfix start <branch_name>"
-	echo "       shipgit hotfix finish (patch|minor|major)"
+	echo "       shipgit hotfix finish (patch|minor|major) -m(optional)"
 	echo "       shipgit hotfix sync"
 	echo "       shipgit hotfix end"
 }
@@ -121,6 +121,7 @@ cmd_finish() {
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	BUMP_TYPE=$3
+	AUTO_COMMIT=$4
 	SEMANTIC_VERSION_PREFIX=$(git config --get shipgit.prefix.semantic)
 	HOTFIX_BRANCH=$(git branch --show-current)
 
@@ -171,7 +172,11 @@ cmd_finish() {
 	NEW_TAG_WITH_PREFIX=$(echo "${SEMANTIC_VERSION_PREFIX}${NEW_TAG}")
 
 	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
-		git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX" &> /dev/null
+		if [ "$AUTO_COMMIT" == "-m" ]; then
+			git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX" &> /dev/null
+		else
+			git tag -a "$NEW_TAG_WITH_PREFIX"
+		fi
 	fi
 	echo "    3. Added annotated tag $NEW_TAG_WITH_PREFIX."
 
