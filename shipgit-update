@@ -15,8 +15,12 @@ cmd_help() {
 cmd_default() {
   local initialized=$(git config --get shipgit.initialized)
 	if [ "$initialized" != "true" ]; then
+		echo "+++++++++++++++++++++++ ATTENTION +++++++++++++++++++++++"
+		echo ""
     echo "shipgit can only be used inside a shipgit initialized directory."
     echo "Run shipgit init to initialize."
+		echo ""
+		echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 		exit 0
 	fi
 
@@ -24,21 +28,21 @@ cmd_default() {
 	MAIN_BRANCH=$(git config --get shipgit.branch.main)
 	PRODUCTION_BRANCH=$(git config --get shipgit.branch.production)
 
-	echo "Checking out to $MAIN_BRANCH..."
-	git checkout -q "$MAIN_BRANCH"
+	echo "========================== Syncing =========================="
+	echo ""
+	echo "Steps:"
 
-	echo "Pulling latest changes from remote $MAIN_BRANCH..."
-	git pull origin "$MAIN_BRANCH"
-
-	echo "Fetching latest tags..."
+	git checkout -q "$MAIN_BRANCH" &> /dev/null
+	git pull origin "$MAIN_BRANCH" &> /dev/null
 	git fetch --tags
+	echo "    1. Pulled latest changes from remote $MAIN_BRANCH."
 
-	echo "Checking out to $PRODUCTION_BRANCH..."
-	git checkout -q "$PRODUCTION_BRANCH"
+	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
+	git pull origin "$PRODUCTION_BRANCH" &> /dev/null
+	git fetch --tags &> /dev/null
+	echo "    2. Pulled latest changes from remote $PRODUCTION_BRANCH."
 
-	echo "Pulling latest changes from remote $PRODUCTION_BRANCH..."
-	git pull origin "$PRODUCTION_BRANCH"
-
-	echo "Checking out back to your initial branch $CURRENT_BRANCH..."
-	git checkout -q "$CURRENT_BRANCH"
+	git checkout -q "$CURRENT_BRANCH" &> /dev/null
+	echo ""
+	echo "============================================================="
 }
