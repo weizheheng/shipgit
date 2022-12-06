@@ -34,7 +34,7 @@ cmd_default() {
 
 	git checkout -q "$MAIN_BRANCH" &> /dev/null
 	git pull origin "$MAIN_BRANCH" &> /dev/null
-	git fetch --tags
+	git fetch --tags &> /dev/null
 	echo "    1. Pulled latest changes from remote $MAIN_BRANCH."
 
 	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
