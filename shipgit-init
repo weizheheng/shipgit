@@ -20,7 +20,7 @@ cat <<EOF > ./.git/.gitmessage
 
 ######################## Descriptive title #############################
 
-######### Optional body: Explan *what* and *why* (not *how*) ###########
+######### Optional body: Explain *what* and *why* (not *how*) ###########
 EOF
   git config commit.template .git/.gitmessage
 }
