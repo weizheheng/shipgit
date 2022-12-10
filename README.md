@@ -32,6 +32,8 @@ It also comes with some of my personal tweaks:
 This project is still in its very early stage at v0.3.0. Breaking changes might be introduced until
 we have a v1.0 release.
 
+Currently, the hotfix and release workflow only works with semantic version with or without prefix.
+
 **Make sure you understand what the scripts are doing before proceeding to the installations.**
 
 ## Installation
