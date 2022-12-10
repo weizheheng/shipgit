@@ -18,7 +18,7 @@ shipgit supports the basic branching models like:
 
 It also comes with some of my personal tweaks:
 - Adding a commit.template to guide users to write better commit message.
-    <img width="743" alt="CleanShot 2022-12-10 at 12 51 52@2x" src="https://user-images.githubusercontent.com/40255418/206829817-f740f381-8bf6-4d6d-846b-a3749c3dae64.png">
+<img width="689" alt="CleanShot 2022-12-10 at 12 57 38@2x" src="https://user-images.githubusercontent.com/40255418/206829938-6a536345-706c-4fca-86ac-a09883d9ff58.png">
 
 - Adding [--log](https://git-scm.com/docs/git-merge#Documentation/git-merge.txt---logltngt) options
     to the `merge` command, which in my opinion added useful information to the merge commit
