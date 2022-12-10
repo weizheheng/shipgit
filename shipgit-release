@@ -149,7 +149,7 @@ cmd_finish() {
 
 	git checkout -q "$RELEASE_BRANCH" &> /dev/null
 	git rebase "$MAIN_BRANCH" &> /dev/null || handle_release_finish_conflict "$RELEASE_BRANCH" "$BUMP_TYPE"
-	echo "    2. Rebased $FEATURE_BRANCH with $MAIN_BRANCH."
+	echo "    2. Rebased $RELEASE_BRANCH with $MAIN_BRANCH."
 
 	# Fallback to prefix0.0.0 if no latest tag found
 	LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "${SEMANTIC_VERSION_PREFIX}0.0.0")

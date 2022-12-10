@@ -1,8 +1,9 @@
 # What's shipgit
 
-Shipgit is my personal git workflow that I have been using for my solo web based project. This
-workflow is highly inspired by:
+Shipgit is my personal git workflow that I have been using for my solo web based project and
+recently introduced it to a team of 6 people at work.
 
+This workflow is highly inspired by:
 1. [git-flow](https://github.com/nvie/gitflow)
 2. [git-HubFlow](https://github.com/datasift/gitflow)
 3. [OneFlow](https://www.endoflineblog.com/oneflow-a-git-branching-model-and-workflow)
@@ -24,12 +25,10 @@ It also comes with some of my personal tweaks:
 - Handling the pulling/pushing from/to your remote hosting providers so that your work is always
     up to date.
 - Opinionated standard on using [git merge](https://git-scm.com/docs/git-merge) and
-    [git rebase](https://git-scm.com/docs/git-rebase) within git-roll.
-
-You can read more on **why** I decided to build this project here.
+    [git rebase](https://git-scm.com/docs/git-rebase) within shipgit.
 
 ## Disclaimer
-This project is still in its very early stage at v0.1.0. Breaking changes might be introduced until
+This project is still in its very early stage at v0.3.0. Breaking changes might be introduced until
 we have a v1.0 release.
 
 **Make sure you understand what the scripts are doing before proceeding to the installations.**
@@ -51,6 +50,8 @@ chmod +x install.sh uninstall.sh
 ./install.sh
 ```
 
+NOTE: You might have to use sudo if permission denied.
+
 The `install.sh` is basically copying all the script files to your machine's `/usr/local/bin` which
 should be already in your PATH so that you can use all the git-roll commands in your terminal.
 
@@ -70,11 +71,11 @@ shipgit init
     - Prefix for Feature branches: feature/
     - Prefix for Hotfix branches: hotfix/
     - Prefix for Release branches: release/
-3. Under the hood, git-roll will create the `production` branch for you if you don't already have
+3. Under the hood, shipgit will create the `production` branch for you if you don't already have
    it locally.
 4. Finally, a local local config "commit.template" will also be added to use a default template
-   provided by git-roll.
-    - You can view all the configs added by git-roll by opening the `.git/config` file with your
+   provided by shipgit.
+    - You can view all the configs added by shipgit by opening the `.git/config` file with your
         editor of choice.
     - You can also edit the commit template in `.git/.gitmessage` if you do not like the default
         one.
@@ -84,172 +85,160 @@ shipgit init
 Available commands:
 - shipgit feature start "feature_name"
 - shipgit feature finish
+- shipgit feature sync
 
-#### Starting a feature
-Let's say you have started a new project and wanted to build the login-flow feature. You can do so
-by running:
-
+#### Starting a feature branch
 ```bash
 shipgit feature start login-flow
 ```
 
 What this command is doing under the hood:
-1. Check out to your local main branch.
-2. Pull latest changes from your remote main branch.
-    - git-roll is calling `git pull` under the hood, but it's recommended to set the pulling
-        default to use the rebase by running: `git config --global pull.rebase true`.
-3. Create a new feature branch with the prefix you have given base on the main branch:
-    - A new branch `feature/login-flow` will be created.
-4. Check out to the `feature/login-flow` branch.
-5. Push the newly created `feature/login-flow` branch to remote.
-6. You can now start building your login flow!
+1. Pull latest changes from your remote main branch.
+2. Create a new feature branch based on local up-to-date main branch.
+3. Push the newly created feature branch to remote and add upstream reference.
 
-#### Finishing a feature
-Few hours later, you have done with your login flow. You can now run:
+#### Synching feature branch
+```bash
+shipgit feature sync
+```
 
+What this command is doing under the hood:
+1. Pull latest changes from your remote main branch.
+2. Rebase feature branch with local up-to-date main branch.
+    - You will need to handle merge conflicts if any.
+
+#### Finishing a feature branch
 ```bash
 shipgit feature finish
 ```
 
 What this command is doing under the hood:
-1. Check out to your local main branch.
-2. Pull latest changes from your remote main branch.
-3. Merge `feature/login-flow` branch into main branch.
-    - If there is no merge conflict:
-        - Push latest changes to remote main branch.
-        - Delete both local and remote `feature/login-flow` branches.
-    - If there is merge confilct:
-        - Abort the merge.
-        - Checkout to `feature/login-flow`
-        - Perform a rebase with updated local main branch.
-        - Telling you to fix those conflicts and run `shipgit feature finish` again when you are done.
+1. Pull latest changes from your remote branch.
+2. Rebase feature branch with your local up-to-date main branch.
+    - You will need to handle merge conflicts if any.
+    - Once fixing all the conflicts, you can run `shipgit feature finish` again
+3. Merge feature branch into main branch.
+4. Push main branch to remote.
+5. Delete feature branch locally and remotely.
 
 ### shipgit release
+**NOTE: Currently only works with semantic versioning**
+
 Available commands:
-- git roll release start "version" "commit-hash"(optional)
-- git roll release finish "version"
+- shipgit release start "release-name"
+- shipgit release finish (patch|minor|major)
+- shipgit release sync
 
-#### Starting a release
-Now the login flow feature is done and merged into main branch. It's time to showcase it to
-your friends. You can do so by creating a release:
-
+#### Starting a release branch
 ```bash
-shipgit release start v0.1.0
+shipgit release start release-1
 ```
 
 What this command is doing under the hood:
-1. Check out to your local main branch.
-2. Pull latest changes from your remote development branch.
-3. Create a new release branch base on the given commit-sha or latest commit on main branch:
-    - A new branch `release/v0.1.0` will be created.
-4. Check out to the `release/v0.1.0` branch.
-5. Push the newly created `release/v0.1.0` branch to remote.
-6. You can now start finalising your v0.1 release.
+1. Pull latest changes from your remote main branch.
+2. Create a new release branch based on latest commit on the local main branch.
+3. Push the new release branch to remote.
 
-#### Finishing a release
-Everything is finalized and you are ready to finish the release:
-
+#### Syncing a release branch
 ```bash
-shipgit release finish
+shipgit release sync
 ```
 
 What this command is doing under the hood:
-1. Create the new `v0.1.0` tag.
-2. Check out to your local main branch.
-3. Pull latest changes from your remote main branch.
-4. Merge `release/v0.1.0` branch into main branch.
-    - If there is no merge conflict:
-        - Push the new tag `v0.1.0` to remote
-        - Push latest changes to remote main branch.
-        - Checkout to production branch
-        - Merge tag `v0.1.0` with `git merge --ff-only v0.1.0`
-        - Push latest changes to remote production branch.
-        - Delete both local and remote release branches.
-        - Checkout to main branch
-    - If there is merge confilct:
-        - Abort the merge.
-        - Delete the `v0.1.0` tag.
-        - Checkout to `release/v0.1.0`.
-        - Perform a rebase with updated local main branch.
-        - Telling you to fix those conflicts and run `shipgit release finish "version"` again when you are done.
+1. Pull latest changes from your remote main branch.
+2. Rebase release branch with your local up-to-date main branch.
+    - You will need to handle merge conflicts if any.
+
+#### Finishing a release branch
+```bash
+shipgit release finish (patch|minor|major)
+```
+
+What this command is doing under the hood:
+1. Pull latest changes from your remote main branch.
+2. Rebase release branch with local up-to-date main branch.
+    - You will need to handle merge conflicts if any.
+    - After fixing all the conflicts you can run `shipgit release finish (patch|minor|major)`
+        again.
+3. Add a new annonated tag to latest commit of your release branch. Note that the semantic version
+   will be bumped automatically depending on the release type (patch|minor|major).
+4. Merge release branch into main branch.
+5. Push the new annotated tag and main branch to remote.
+6. Merge the annotated tag into local up-to-date production branch.
+7. Push production branch to remote.
+8. Deleted release branch locally and remotely.
 
 ### shipgit hotfix
 Available commands:
-- git roll hotfix start "version"
-- git roll hotfix finish "version"
-- git roll hotfix end "version"
+- git roll hotfix start "hotfix-name"
+- git roll hotfix finish (patch|minor|major)
+- git roll hotfix end
 
-#### Starting a hotfix
-Your friend reported that there is a bug with the login flow. You can start a hotfix branch by:
-
+#### Starting a hotfix branch
 ```bash
-shipgit hotfix start v0.1.1
+shipgit hotfix start fix-bug1
 ```
 
 What this command is doing under the hood:
-1. Check out to your local production master.
-2. Pull latest changes from your remote production branch.
-3. Create a new hotfix branch with the prefix you have given base on the production branch:
-    - A new branch `hotfix/v0.1.1` will be created.
-4. Check out to the `hotfix/v0.1.1` branch.
-5. Push the newly created `hotfix/v0.1.1` branch to remote.
-6. You can now start fixing the bug.
+1. Pull latest changes from your remote production branch.
+2. Create a new hotfix branch based on up-to-date production branch.
+3. Push the newly created hotfix branch to remote and add upstream reference.
 
-#### Finishing a release
-Phew.., you found the bug and fixed it under one hour. You can now finish the hotfix by:
-
+#### Syncing a hotfix branch
 ```bash
-shipgit hotfix finish v0.1.1
+shipgit hotfix sync
 ```
 
 What this command is doing under the hood:
-1. Create a new tag `v0.1.1`.
-2. Check out to your local main branch.
-3. Pull latest changes from your remote main branch.
-4. Merge `hotfix/v0.1.1` branch into master branch.
-    - If there is no merge conflict:
-        - Push the `v0.1.1` tag to remote.
-        - Push latest changes to remote main branch.
-        - Checkout to local production branch.
-        - Merge tag `v0.1.1` with `git merge --ff-only v0.1.1`.
-        - Push latest changes to remote production branch.
-        - Delete both local and remote hotfix branches.
-        - Checkout to main branch.
-    - If there is merge confilct:
-        - Abort the merge.
-        - Telling you to fix the conflict and run `git commit`.
-        - After that, run `shipgit hotfix end v0.1.1`
+1. Pull latest changes from your remote production branch.
+2. Rebase feature branch with your local up-to-date production branch.
+    - You will need to handle merge conflicts if any.
+
+#### Finishing a hotfix branch
+```bash
+shipgit hotfix finish (patch|minor|major)
+```
+
+What this command is doing under the hood:
+1. Pull latest changes from your remote production branch
+2. Rebase hotfix branch with local up-to-date production branch
+    - You will need to handle merge conflicts if any.
+    - After fixing all the conflicts you can run `shipgit release finish (patch|minor|major)`
+        again.
+3. Add a new annonated tag to latest commit of your release branch. Note that the semantic version
+   will be bumped automatically depending on the hotfix finish type (patch|minor|major).
+4. Merge hotfix branch into main branch.
+    - You might come across merge conflicts here.
+    - Fix all the conflicts and run `git commit`
+    - After that, you can checkout to your hotfix branch again and run `shipgit hotfix end`
+5. Push the new annotated tag and main branch to remote.
+6. Merge the annotated tag into local up-to-date production branch.
+7. Push production branch to remote.
+8. Delete hotfix branch locally and remotely.
 
 #### Ending a hotfix
 This should only be called after you have fixed the merge conflicts when trying to merge the
 hotfix branch into the main branch.
 
 ```bash
-shipgit hotfix end v0.1.1
+shipgit hotfix end
 ```
 
 What this command is doing under the hood:
-1. Push the tag `v0.1.1` to remote.
-2. Push the latest changes to remote main branch.
-3. Checkout to local production branch.
-4. Pull latest changes from remote production branch.
-5. Merge the tag `v0.1.1` with `git merge --ff-only v0.1.1`
-6. Push the latest changes to remote production.
-7. Delete both local and remote hotfix branches.
-8. Checkout to main branch.
+1. Push the annotated tag created while running `shipgit hotfix finish (patch|minor|major)` and
+   main branch (you just fixed the conflicts while trying to merge hotfix branch into main branch)
+   to remote.
+2. Merge the annotated tag into production branch.
+3. Push production branch to remote.
+4. Delete hotfix branch locally and remotely.
 
 ### shipgit update
-Run this command to keep your local main and production branches up-to-date with remote.
-
 ```bash
 shipgit update
 ```
 
 What this command is doing under the hood:
-1. Check out to your local main branch.
-2. Pull latest changes from your remote main branch.
-3. Check out to your local production branch.
-4. Pull latest changes from your remote production branch.
+1. Pull latest changes from your remote main and production branch.
 
 ## Pro Tips
 You can add aliases to your shell. For example, I am using `zsh` shell and I have the following
@@ -274,14 +263,17 @@ sgu
 
 # feature
 sgf start feature1
+sgf sync
 sgf finish
 
 # release
-sgr start v0.1.0
-sgr finish v0.1.1
+sgr start release-1
+sgr sync
+sgr finish patch
 
 # hotfix
-sgh start v0.1.1
-sgh finish v0.1.1
-sgh end v0.1.1
+sgh start fix-bug1
+sgh sync
+sgh finish patch
+sgh end
 ```
