@@ -179,6 +179,7 @@ cmd_finish() {
 	echo "    3. Added annotated tag $NEW_TAG_WITH_PREFIX."
 
 	git checkout -q "$MAIN_BRANCH" &> /dev/null
+
 	git merge --log --ff-only "$RELEASE_BRANCH" &> /dev/null
 	echo "    4. Merged $RELEASE_BRANCH into $MAIN_BRANCH."
 
@@ -188,7 +189,9 @@ cmd_finish() {
 
 	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
 	git pull origin $PRODUCTION_BRANCH &> /dev/null
-	git merge --ff-only "$NEW_TAG_WITH_PREFIX" &> /dev/null
+
+	# Possible to raise Not possible to fast-forward, aborting error when use --ff-only
+	git merge --ff "$NEW_TAG_WITH_PREFIX" &> /dev/null
 	echo "    6. Merged annotated tag $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH."
 
 	git push origin "$PRODUCTION_BRANCH" &> /dev/null
