@@ -28,7 +28,7 @@ handle_feature_finish_conflict() {
 	echo "Please fix the conflicts and when you are done, run:"
 	echo "      $ git rebase --continue"
 	echo ""
-	echo "After that you can checkout back to your hotfix branch and run:"
+	echo "After that you can checkout back to your feature branch and run:"
 	echo "      $ shipgit feature finish"
 	echo ""
 	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
