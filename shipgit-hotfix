@@ -173,12 +173,26 @@ cmd_finish() {
 
 	if [ "$NEW_TAG_WITH_PREFIX" != "$LATEST_TAG" ]; then
 		if [ "$AUTO_COMMIT" == "-m" ]; then
-			git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX" &> /dev/null
+			git tag -a "$NEW_TAG_WITH_PREFIX" -m "HOTFIX: $NEW_TAG_WITH_PREFIX" 1> /dev/null || {
+        echo "Error: Tag $NEW_TAG_WITH_PREFIX already exists or another issue occurred"
+        exit 1
+      }
 		else
 			git tag -a "$NEW_TAG_WITH_PREFIX"
 		fi
 	fi
 	echo "    3. Added annotated tag $NEW_TAG_WITH_PREFIX."
+
+  git push origin "$NEW_TAG_WITH_PREFIX" 1> /dev/null || {
+    echo "Error: Unable to push tag $NEW_TAG_WITH_PREFIX to remote."
+    echo "Deleting tag $NEW_TAG_WITH_PREFIX locally."
+    git tag -d "$NEW_TAG_WITH_PREFIX"
+    echo "Please checkout to your hotfix brand and try to run:"
+    echo "      $ shipgit hotfix finish"
+    exit 1
+  }
+	echo "    4. Pushed tag $NEW_TAG_WITH_PREFIX to remote."
+
 
 	git checkout -q "$MAIN_BRANCH" &> /dev/null
 	git pull origin $MAIN_BRANCH &> /dev/null
@@ -186,23 +200,36 @@ cmd_finish() {
 	# Therefore, we can't use --ff-only to merge because main branch is usually
 	# much ahead of the production branch.
 	git merge --log --no-ff "$HOTFIX_BRANCH" &> /dev/null || handle_main_merge_conflict "$HOTFIX_BRANCH"
-	echo "    4. Merged $HOTFIX_BRANCH into $MAIN_BRANCH."
+	echo "    5. Merged $HOTFIX_BRANCH into $MAIN_BRANCH."
 
-  git push origin "$NEW_TAG_WITH_PREFIX" &> /dev/null
-	git push origin "$MAIN_BRANCH" &> /dev/null
-	echo "    5. Pushed tag $NEW_TAG_WITH_PREFIX and $MAIN_BRANCH to remote."
+	git push origin "$MAIN_BRANCH" 1> /dev/null || {
+		echo "Error:"
+		echo "    1. Unable to push to $MAIN_BRANCH"
+		echo "    2. Please fix the error and then checkout to your hotfix branch and run:"
+		echo "      $ shipgit hotfix end"
+		echo ""
+		exit 1
+	}
+	echo "    6. Pushed $MAIN_BRANCH to remote."
 
 	git checkout -q "$PRODUCTION_BRANCH" &> /dev/null
 	git pull origin $PRODUCTION_BRANCH &> /dev/null
 	git merge --ff-only "$NEW_TAG_WITH_PREFIX" &> /dev/null
-	echo "    6. Merged annotated tag $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH."
+	echo "    7. Merged annotated tag $NEW_TAG_WITH_PREFIX into $PRODUCTION_BRANCH."
 
-	git push origin "$PRODUCTION_BRANCH" &> /dev/null
-	echo "    7. Pushed $PRODUCTION_BRANCH to remote."
+	git push origin "$PRODUCTION_BRANCH" 1> /dev/null || {
+		echo "Error:"
+		echo "    1. Unable to push to $PRODUCTION_BRANCH"
+		echo "    2. Please fix the error and then checkout to your hotfix branch and run:"
+		echo "      $ shipgit hotfix end"
+		echo ""
+		exit 1
+	}
+	echo "    8. Pushed $PRODUCTION_BRANCH to remote."
 
 	git branch -D "$HOTFIX_BRANCH" &> /dev/null
 	git push -d origin "$HOTFIX_BRANCH" &> /dev/null
-	echo "    8. Deleted $HOTFIX_BRANCH locally and remotely."
+	echo "    9. Deleted $HOTFIX_BRANCH locally and remotely."
 	git checkout -q "$MAIN_BRANCH" &> /dev/null
 
 	echo ""
