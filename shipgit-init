@@ -71,21 +71,30 @@ cmd_default() {
   production_branch="$answer"
   git config shipgit.branch.production "$production_branch"
 
+  # 5: Setting prefixes with sensible defaults
+  local semantic_prefix
   printf "Prefix for Semantic Version? [v]: "
   read answer
-  git config shipgit.prefix.semantic "$answer"
+  semantic_prefix="${answer:-v}"
+  git config shipgit.prefix.semantic "$semantic_prefix"
 
+  local feature_prefix
   printf "Prefix for Feature branches? [feature/]: "
   read answer
-  git config shipgit.prefix.feature "$answer"
+  feature_prefix="${answer:-feature/}"
+  git config shipgit.prefix.feature "$feature_prefix"
 
+  local hotfix_prefix
   printf "Prefix for Hotfix branches? [hotfix/]: "
   read answer
-  git config shipgit.prefix.hotfix "$answer"
+  hotfix_prefix="${answer:-hotfix/}"
+  git config shipgit.prefix.hotfix "$hotfix_prefix"
 
+  local release_prefix
   printf "Prefix for Release branches? [release/]: "
   read answer
-  git config shipgit.prefix.release "$answer"
+  release_prefix="${answer:-release/}"
+  git config shipgit.prefix.release "$release_prefix"
 
   # 8: Setting up git commit template
   setup_commit_template

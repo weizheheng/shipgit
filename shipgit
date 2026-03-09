@@ -9,10 +9,11 @@ usage() {
 	echo "usage: shipgit <subcommand>"
 	echo
 	echo "Available subcommands are:"
-	echo "   init      Initialize a new git repo with support for the branching model."
-	echo "   feature   Manage your feature branches."
-	echo "   release   Manage your release branches."
-	echo "   hotfix    Manage your hotfix branches."
+	echo "   init         Initialize a new git repo with support for the branching model."
+	echo "   feature      Manage your feature branches."
+	echo "   release      Manage your release branches."
+	echo "   hotfix       Manage your hotfix branches."
+	echo "   config-edit  Edit shipgit configuration (branches and prefixes)."
 	echo
 	echo "Try 'shipgit <subcommand> help' for details."
 }

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: shipgit config-edit"
+  echo "This will update your shipgit configuration (branches and prefixes)."
+}
+
+cmd_help() {
+	usage
+  exit 0
+}
+
+cmd_default() {
+  local initialized
+  initialized=$(git config --get shipgit.initialized)
+	if [ "$initialized" != "true" ]; then
+		echo "+++++++++++++++++++++++ ATTENTION +++++++++++++++++++++++"
+		echo ""
+    echo "shipgit can only be used inside a shipgit initialized directory."
+    echo "Run shipgit init to initialize."
+		echo ""
+		echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+		exit 1
+	fi
+
+  local answer
+
+  # Edit main branch name
+  local main_branch
+  main_branch=$(git config --get shipgit.branch.main)
+  printf "Branch name for main [%s]: " "$main_branch"
+  read answer
+  if [ -n "$answer" ]; then
+    main_branch="$answer"
+  fi
+  git config shipgit.branch.main "$main_branch"
+
+  # Edit production branch name
+  local production_branch
+  production_branch=$(git config --get shipgit.branch.production)
+  printf "Branch name for production [%s]: " "$production_branch"
+  read answer
+  if [ -n "$answer" ]; then
+    production_branch="$answer"
+  fi
+  git config shipgit.branch.production "$production_branch"
+
+  # Edit semantic version prefix (fallback to v)
+  local semantic_prefix
+  semantic_prefix=$(git config --get shipgit.prefix.semantic)
+  if [ -z "$semantic_prefix" ]; then
+    semantic_prefix="v"
+  fi
+  printf "Prefix for Semantic Version? [%s]: " "$semantic_prefix"
+  read answer
+  if [ -n "$answer" ]; then
+    semantic_prefix="$answer"
+  fi
+  git config shipgit.prefix.semantic "$semantic_prefix"
+
+  # Edit feature prefix (fallback to feature/)
+  local feature_prefix
+  feature_prefix=$(git config --get shipgit.prefix.feature)
+  if [ -z "$feature_prefix" ]; then
+    feature_prefix="feature/"
+  fi
+  printf "Prefix for Feature branches? [%s]: " "$feature_prefix"
+  read answer
+  if [ -n "$answer" ]; then
+    feature_prefix="$answer"
+  fi
+  git config shipgit.prefix.feature "$feature_prefix"
+
+  # Edit hotfix prefix (fallback to hotfix/)
+  local hotfix_prefix
+  hotfix_prefix=$(git config --get shipgit.prefix.hotfix)
+  if [ -z "$hotfix_prefix" ]; then
+    hotfix_prefix="hotfix/"
+  fi
+  printf "Prefix for Hotfix branches? [%s]: " "$hotfix_prefix"
+  read answer
+  if [ -n "$answer" ]; then
+    hotfix_prefix="$answer"
+  fi
+  git config shipgit.prefix.hotfix "$hotfix_prefix"
+
+  # Edit release prefix (fallback to release/)
+  local release_prefix
+  release_prefix=$(git config --get shipgit.prefix.release)
+  if [ -z "$release_prefix" ]; then
+    release_prefix="release/"
+  fi
+  printf "Prefix for Release branches? [%s]: " "$release_prefix"
+  read answer
+  if [ -n "$answer" ]; then
+    release_prefix="$answer"
+  fi
+  git config shipgit.prefix.release "$release_prefix"
+
+  echo ""
+  echo "Updated shipgit configuration."
+}
+
